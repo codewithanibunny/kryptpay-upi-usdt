@@ -420,12 +420,12 @@ app.post('/api/create-payin-order', async (req, res) => {
 
         const newOrder = {
             merchant_order_no: merchantOrderNo,
-            type: 'BUY',
+            type: 'DEPOSIT',
             amount: formattedAmount,
             feeTotal: feeTotal,
             netAmount: netAmount,
-            usdtAmount: (parseFloat(netAmount) / 89.50).toFixed(2),
-            binanceAddress: binanceAddress,
+            usdtAmount: '0.00',
+            binanceAddress: userBinanceAddr,
             userEmail: emailKey,
             status: 'PENDING',
             utr: null,

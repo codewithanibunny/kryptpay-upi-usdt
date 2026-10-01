@@ -1002,19 +1002,19 @@ async function loadUserTransactionLedger() {
             if (data.status === 1 && data.transactions && data.transactions.length > 0) {
                 
                 tbody.innerHTML = data.transactions.map(tx => {
-                    const isBuy = tx.type !== 'WITHDRAW';
-                    const typeBadge = isBuy
-                        ? '<span class="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">BUY</span>'
-                        : (tx.type === 'CONVERT' 
-                            ? '<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">CONVERT</span>'
-                            : '<span class="bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded font-bold">WITHDRAW</span>');
+                    const isDeposit = tx.type === 'DEPOSIT' || tx.type === 'BUY';
+                    const isConvert = tx.type === 'CONVERT' || tx.type === 'WITHDRAW';
+
+                    const typeBadge = isDeposit
+                        ? '<span class="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">DEPOSIT</span>'
+                        : '<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">CONVERT</span>';
 
                     const isProcessing = tx.status === 'PROCESSING' || tx.status === 'PENDING';
                     const isCompleted = tx.status === 'COMPLETED' || tx.status === 'PAID' || tx.status === 'SUCCESS';
 
-                    if (isProcessing) {
+                    if (isConvert && isProcessing) {
                         trackedProcessingOrders.add(tx.merchant_order_no);
-                    } else if (isCompleted && trackedProcessingOrders.has(tx.merchant_order_no)) {
+                    } else if (isConvert && isCompleted && trackedProcessingOrders.has(tx.merchant_order_no)) {
                         // Order completed! Remove from set and trigger success modal
                         trackedProcessingOrders.delete(tx.merchant_order_no);
                         
@@ -1026,7 +1026,7 @@ async function loadUserTransactionLedger() {
 
                         if (inrElem) inrElem.innerText = `₹${parseFloat(tx.amount).toFixed(2)} INR`;
                         if (usdtElem) usdtElem.innerText = `${tx.usdtAmount} USDT (BEP20)`;
-                        if (addrElem) addrElem.innerText = tx.binanceAddress;
+                        if (addrElem) addrElem.innerText = tx.binanceAddress || 'Saved Address';
                         if (utrElem) utrElem.innerText = tx.utr || 'Confirmed';
                         if (hashElem) hashElem.innerText = tx.txHash ? tx.txHash.substring(0, 14) + '...' : '0x9b3f...e82c';
 
@@ -1034,20 +1034,27 @@ async function loadUserTransactionLedger() {
                         if (modal) modal.classList.remove('hidden');
                     }
 
+                    // INR Amount Formatting
+                    const netAmt = tx.netAmount || tx.amount;
+                    const inrDisplay = isDeposit
+                        ? `<span class="text-emerald-400 font-bold">+₹${parseFloat(netAmt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>`
+                        : `<span class="text-slate-200 font-bold">-₹${parseFloat(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>`;
+
+                    // USDT Column Formatting
+                    const usdtDisplay = isDeposit
+                        ? `<span class="text-slate-500 font-mono text-[11px]">- (In Wallet)</span>`
+                        : `<span class="font-bold text-amber-400">${tx.usdtAmount} USDT</span>`;
+
                     // Status Badge Markup
                     let statusMarkup = '';
                     if (isProcessing) {
-                        statusMarkup = `
-                            <span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 animate-pulse inline-flex items-center gap-1.5">
-                                <i class="fa-solid fa-spinner animate-spin text-[10px]"></i> Processing...
-                            </span>
-                        `;
+                        statusMarkup = isDeposit
+                            ? `<span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 animate-pulse inline-flex items-center gap-1.5"><i class="fa-solid fa-spinner animate-spin text-[10px]"></i> Awaiting UPI...</span>`
+                            : `<span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 animate-pulse inline-flex items-center gap-1.5"><i class="fa-solid fa-spinner animate-spin text-[10px]"></i> Processing...</span>`;
                     } else if (isCompleted) {
-                        statusMarkup = `
-                            <span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 inline-flex items-center gap-1.5">
-                                <i class="fa-solid fa-circle-check text-emerald-400"></i> Completed
-                            </span>
-                        `;
+                        statusMarkup = isDeposit
+                            ? `<span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 inline-flex items-center gap-1.5"><i class="fa-solid fa-circle-check text-emerald-400"></i> Wallet Credited</span>`
+                            : `<span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 inline-flex items-center gap-1.5"><i class="fa-solid fa-circle-check text-emerald-400"></i> Completed</span>`;
                     } else {
                         statusMarkup = `
                             <span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 inline-flex items-center gap-1.5">
@@ -1056,23 +1063,29 @@ async function loadUserTransactionLedger() {
                         `;
                     }
 
-                    // UTR & TxHash Markup
+                    // UTR Display
                     const utrDisplay = isProcessing
                         ? `<span class="text-amber-400/80 font-mono text-[11px]"><i class="fa-solid fa-clock mr-1"></i>Processing...</span>`
                         : `<span class="text-slate-300 font-mono text-[11px]">${tx.utr || 'Confirmed'}</span>`;
 
-                    const txHashDisplay = isProcessing
-                        ? `<span class="text-amber-400/80 font-mono text-[11px] flex items-center gap-1"><i class="fa-solid fa-arrows-rotate animate-spin text-[9px]"></i> Dispatched on Chain...</span>`
-                        : (tx.txHash 
-                            ? `<a href="https://bscscan.com/tx/${tx.txHash}" target="_blank" class="text-cyan-400 hover:text-cyan-300 font-mono text-[11px] flex items-center gap-1 hover:underline"><i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i> ${tx.txHash.substring(0, 10)}...</a>`
-                            : `-`);
+                    // BSC TxHash Display
+                    let txHashDisplay = '';
+                    if (isDeposit) {
+                        txHashDisplay = `<span class="text-slate-500 font-mono text-[11px]">- (In Wallet)</span>`;
+                    } else if (isProcessing) {
+                        txHashDisplay = `<span class="text-amber-400/80 font-mono text-[11px] flex items-center gap-1"><i class="fa-solid fa-arrows-rotate animate-spin text-[9px]"></i> Dispatched on Chain...</span>`;
+                    } else if (tx.txHash) {
+                        txHashDisplay = `<a href="https://bscscan.com/tx/${tx.txHash}" target="_blank" class="text-cyan-400 hover:text-cyan-300 font-mono text-[11px] flex items-center gap-1 hover:underline"><i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i> ${tx.txHash.substring(0, 10)}...</a>`;
+                    } else {
+                        txHashDisplay = `-`;
+                    }
 
                     return `
                         <tr class="hover:bg-slate-900/60 transition-colors">
                             <td class="py-3 px-4 font-mono font-semibold text-white">${tx.merchant_order_no}</td>
                             <td class="py-3 px-4">${typeBadge}</td>
-                            <td class="py-3 px-4 font-bold text-white">₹${parseFloat(tx.amount).toLocaleString('en-IN')}</td>
-                            <td class="py-3 px-4 font-bold text-emerald-400">${tx.usdtAmount} USDT</td>
+                            <td class="py-3 px-4">${inrDisplay}</td>
+                            <td class="py-3 px-4">${usdtDisplay}</td>
                             <td class="py-3 px-4">${utrDisplay}</td>
                             <td class="py-3 px-4">${statusMarkup}</td>
                             <td class="py-3 px-4">${txHashDisplay}</td>
