@@ -65,10 +65,55 @@ function calculateMD5Signature(apiKey, amount2Dec, callbackUrl, merchantId, merc
     return crypto.createHash('md5').update(signString).digest('hex');
 }
 
+const nodemailer = require('nodemailer');
+
+async function sendOtpEmail(toEmail, otpCode) {
+    const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || '';
+    const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_PASS || '';
+
+    if (!smtpUser || !smtpPass) {
+        console.log(`\n📧 [EMAIL OTP GENERATED] Sent to ${toEmail} | OTP Code: ${otpCode}`);
+        return false;
+    }
+
+    try {
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: smtpUser,
+                pass: smtpPass
+            }
+        });
+
+        const mailOptions = {
+            from: `"KryptPay Security" <${smtpUser}>`,
+            to: toEmail,
+            subject: `🔑 ${otpCode} is your KryptPay Verification Code`,
+            html: `
+                <div style="font-family: Arial, sans-serif; background-color: #06090E; color: #ffffff; padding: 30px; border-radius: 16px; max-width: 500px; margin: 0 auto;">
+                    <h2 style="color: #10B981; margin-top: 0;">KryptPay Executive Wealth</h2>
+                    <p style="color: #94A3B8; font-size: 14px;">Welcome! Use the 6-digit code below to verify your email address:</p>
+                    <div style="background-color: #0F172A; border: 1px solid #1E293B; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">
+                        <span style="font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #10B981;">${otpCode}</span>
+                    </div>
+                    <p style="color: #64748B; font-size: 12px;">This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`\n✅ [REAL GMAIL SENT] Delivered 6-digit OTP code ${otpCode} to ${toEmail}`);
+        return true;
+    } catch (err) {
+        console.error('\n⚠️ Nodemailer SMTP Error:', err.message);
+        return false;
+    }
+}
+
 // -------------------------------------------------------------
 // AUTH 1: USER REGISTRATION & EMAIL OTP VERIFICATION GENERATION
 // -------------------------------------------------------------
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
     const { name, email, password, binanceAddress } = req.body;
 
     if (!name || !email || !password || !binanceAddress) {
@@ -97,7 +142,7 @@ app.post('/api/auth/register', (req, res) => {
     };
 
     usersDb.set(emailKey, newUser);
-    console.log(`\n📧 [EMAIL OTP GENERATED] Sent to ${emailKey} | OTP Code: ${otpCode}`);
+    await sendOtpEmail(emailKey, otpCode);
 
     res.json({
         status: 1,
