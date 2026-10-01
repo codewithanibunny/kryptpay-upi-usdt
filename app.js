@@ -379,12 +379,6 @@ async function handleRegistration(e) {
         if (data.status === 1) {
             pendingVerificationEmail = data.email;
             document.getElementById('otp-target-email').innerText = data.email;
-            
-            if (data.devOtp) {
-                document.getElementById('dev-otp-code').innerText = data.devOtp;
-                document.getElementById('otp-dev-hint').classList.remove('hidden');
-            }
-
             document.getElementById('otp-verification-modal').classList.remove('hidden');
         } else {
             showAuthError(data.message || 'Registration failed.');
@@ -393,6 +387,102 @@ async function handleRegistration(e) {
         regBtn.disabled = false;
         regBtn.innerHTML = `Register Account & Send Verification Code`;
         showAuthError('Server Connection Error.');
+    }
+}
+
+/* ================= FORGOT PASSWORD MODAL & LOGIC ================= */
+
+function openForgotPasswordModal() {
+    hideAuthError();
+    document.getElementById('forgot-step-1').classList.remove('hidden');
+    document.getElementById('forgot-step-2').classList.add('hidden');
+    const loginEmail = document.getElementById('login-email');
+    if (loginEmail && loginEmail.value) {
+        document.getElementById('forgot-email-input').value = loginEmail.value.trim();
+    }
+    document.getElementById('forgot-password-modal').classList.remove('hidden');
+}
+
+function closeForgotPasswordModal() {
+    document.getElementById('forgot-password-modal').classList.add('hidden');
+}
+
+async function handleSendForgotOtp(e) {
+    e.preventDefault();
+    const email = document.getElementById('forgot-email-input').value.trim();
+    const btn = document.getElementById('forgot-send-btn');
+
+    if (!email) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin mr-1"></i> Sending OTP...';
+
+    try {
+        const response = await fetch('/api/auth/forgot-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const data = await response.json();
+
+        if (data.status === 1) {
+            document.getElementById('forgot-target-email').innerText = email;
+            document.getElementById('forgot-step-1').classList.add('hidden');
+            document.getElementById('forgot-step-2').classList.remove('hidden');
+        } else {
+            alert(data.message || 'Failed to send reset OTP');
+        }
+    } catch (err) {
+        alert('Server error while sending OTP. Please try again.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane mr-1"></i> Send OTP to Email';
+    }
+}
+
+async function handleResetPassword(e) {
+    e.preventDefault();
+    const email = document.getElementById('forgot-target-email').innerText.trim() || document.getElementById('forgot-email-input').value.trim();
+    const otp = document.getElementById('forgot-otp-input').value.trim();
+    const newPassword = document.getElementById('forgot-new-password').value;
+    const confirmPassword = document.getElementById('forgot-confirm-password').value;
+    const btn = document.getElementById('forgot-reset-btn');
+
+    if (newPassword !== confirmPassword) {
+        alert('New passwords do not match! Please check and try again.');
+        return;
+    }
+
+    if (newPassword.length < 6) {
+        alert('Password must be at least 6 characters long.');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin mr-1"></i> Updating Password...';
+
+    try {
+        const response = await fetch('/api/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, otp, newPassword })
+        });
+        const data = await response.json();
+
+        if (data.status === 1) {
+            alert('✅ Password updated successfully! Please log in with your new password.');
+            closeForgotPasswordModal();
+            switchAuthTab('login');
+            document.getElementById('login-email').value = email;
+            document.getElementById('login-password').value = newPassword;
+        } else {
+            alert(data.message || 'Failed to reset password.');
+        }
+    } catch (err) {
+        alert('Server error while resetting password.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Update Password & Login';
     }
 }
 

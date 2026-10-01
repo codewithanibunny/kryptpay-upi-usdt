@@ -67,14 +67,23 @@ function calculateMD5Signature(apiKey, amount2Dec, callbackUrl, merchantId, merc
 
 const nodemailer = require('nodemailer');
 
-async function sendOtpEmail(toEmail, otpCode) {
+async function sendOtpEmail(toEmail, otpCode, type = 'verification') {
     const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || '';
     const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_PASS || '';
 
     if (!smtpUser || !smtpPass) {
-        console.log(`\n📧 [EMAIL OTP GENERATED] Sent to ${toEmail} | OTP Code: ${otpCode}`);
+        console.log(`\n📧 [EMAIL OTP GENERATED] Sent to ${toEmail} | (${type.toUpperCase()}) OTP Code: ${otpCode}`);
         return false;
     }
+
+    const isReset = type === 'reset';
+    const subject = isReset 
+        ? `🔐 ${otpCode} is your KryptPay Password Reset Code`
+        : `🔑 ${otpCode} is your KryptPay Verification Code`;
+    const title = isReset ? `Password Reset Request` : `Welcome to KryptPay`;
+    const text = isReset 
+        ? `Use the 6-digit code below to reset your KryptPay account password:`
+        : `Welcome! Use the 6-digit code below to verify your email address:`;
 
     try {
         const transporter = nodemailer.createTransport({
@@ -88,11 +97,12 @@ async function sendOtpEmail(toEmail, otpCode) {
         const mailOptions = {
             from: `"KryptPay Security" <${smtpUser}>`,
             to: toEmail,
-            subject: `🔑 ${otpCode} is your KryptPay Verification Code`,
+            subject: subject,
             html: `
                 <div style="font-family: Arial, sans-serif; background-color: #06090E; color: #ffffff; padding: 30px; border-radius: 16px; max-width: 500px; margin: 0 auto;">
-                    <h2 style="color: #10B981; margin-top: 0;">KryptPay Executive Wealth</h2>
-                    <p style="color: #94A3B8; font-size: 14px;">Welcome! Use the 6-digit code below to verify your email address:</p>
+                    <h2 style="color: #10B981; margin-top: 0;">KryptPay Security</h2>
+                    <h3 style="color: #F59E0B; margin-top: 0;">${title}</h3>
+                    <p style="color: #94A3B8; font-size: 14px;">${text}</p>
                     <div style="background-color: #0F172A; border: 1px solid #1E293B; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">
                         <span style="font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #10B981;">${otpCode}</span>
                     </div>
@@ -102,7 +112,7 @@ async function sendOtpEmail(toEmail, otpCode) {
         };
 
         await transporter.sendMail(mailOptions);
-        console.log(`\n✅ [REAL GMAIL SENT] Delivered 6-digit OTP code ${otpCode} to ${toEmail}`);
+        console.log(`\n✅ [REAL GMAIL SENT] Delivered 6-digit ${type} code ${otpCode} to ${toEmail}`);
         return true;
     } catch (err) {
         console.error('\n⚠️ Nodemailer SMTP Error:', err.message);
@@ -142,13 +152,12 @@ app.post('/api/auth/register', async (req, res) => {
     };
 
     usersDb.set(emailKey, newUser);
-    await sendOtpEmail(emailKey, otpCode);
+    await sendOtpEmail(emailKey, otpCode, 'verification');
 
     res.json({
         status: 1,
         message: `Verification code sent to ${emailKey}`,
-        email: emailKey,
-        devOtp: otpCode
+        email: emailKey
     });
 });
 
@@ -277,6 +286,83 @@ app.post('/api/auth/google', (req, res) => {
             binanceAddress: user.binanceAddress,
             walletBalance: user.walletBalance || 0.00
         }
+    });
+});
+
+// -------------------------------------------------------------
+// AUTH 5: FORGOT PASSWORD - GENERATE & EMAIL RESET OTP
+// -------------------------------------------------------------
+app.post('/api/auth/forgot-password', async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).json({ status: 0, message: 'Email address is required.' });
+    }
+
+    const emailKey = email.toLowerCase().trim();
+    const user = usersDb.get(emailKey);
+
+    if (!user) {
+        return res.status(404).json({ status: 0, message: 'Account with this email does not exist. Please register first.' });
+    }
+
+    const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.forgotOtpCode = resetOtp;
+    user.forgotOtpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    usersDb.set(emailKey, user);
+
+    await sendOtpEmail(emailKey, resetOtp, 'reset');
+
+    console.log(`🔑 [FORGOT PASSWORD OTP GENERATED] ${emailKey} -> ${resetOtp}`);
+
+    res.json({
+        status: 1,
+        message: `Reset OTP sent to ${emailKey}. Please check your email inbox.`,
+        email: emailKey
+    });
+});
+
+// -------------------------------------------------------------
+// AUTH 6: RESET PASSWORD WITH OTP
+// -------------------------------------------------------------
+app.post('/api/auth/reset-password', (req, res) => {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+        return res.status(400).json({ status: 0, message: 'Email, OTP, and new password are required.' });
+    }
+
+    if (newPassword.length < 6) {
+        return res.status(400).json({ status: 0, message: 'Password must be at least 6 characters long.' });
+    }
+
+    const emailKey = email.toLowerCase().trim();
+    const user = usersDb.get(emailKey);
+
+    if (!user) {
+        return res.status(404).json({ status: 0, message: 'Account not found.' });
+    }
+
+    if (!user.forgotOtpCode || user.forgotOtpCode !== otp.trim()) {
+        return res.status(400).json({ status: 0, message: 'Invalid Password Reset Code! Check your email.' });
+    }
+
+    if (Date.now() > user.forgotOtpExpires) {
+        return res.status(400).json({ status: 0, message: 'Reset Code has expired! Please request a new one.' });
+    }
+
+    // Update user password and clear OTP
+    user.password = newPassword;
+    user.forgotOtpCode = null;
+    user.forgotOtpExpires = null;
+    usersDb.set(emailKey, user);
+
+    console.log(`✅ [PASSWORD RESET SUCCESSFUL] Password updated for ${emailKey}`);
+
+    res.json({
+        status: 1,
+        message: 'Password reset successfully! You can now login with your new password.',
+        email: emailKey
     });
 });
 
