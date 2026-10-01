@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchLiveRate();
     calculateUsdt();
     checkSavedSession();
+    initGoogleAuth();
 });
 
 // Check saved user session in LocalStorage
@@ -43,8 +44,21 @@ function applyUserSession() {
     document.getElementById('auth-nav-user').classList.remove('hidden');
     document.getElementById('auth-nav-user').classList.add('flex');
     
-    document.getElementById('user-name-display').innerText = currentUser.name;
-    document.getElementById('user-avatar-text').innerText = currentUser.name.charAt(0).toUpperCase();
+    document.getElementById('user-name-display').innerText = currentUser.name || 'User Account';
+    
+    // User Profile Picture vs Initial Letter
+    const avatarImg = document.getElementById('user-avatar-img');
+    const avatarText = document.getElementById('user-avatar-text');
+
+    if (currentUser.picture) {
+        avatarImg.src = currentUser.picture;
+        avatarImg.classList.remove('hidden');
+        avatarText.classList.add('hidden');
+    } else {
+        avatarImg.classList.add('hidden');
+        avatarText.classList.remove('hidden');
+        avatarText.innerText = (currentUser.name || 'U').charAt(0).toUpperCase();
+    }
 
     if (currentUser.binanceAddress) {
         const addrInput = document.getElementById('binance-address');
@@ -73,17 +87,71 @@ function switchAuthTab(tab) {
     }
 }
 
-/* ================= AUTHENTICATION HANDLERS ================= */
+/* ================= GOOGLE IDENTITY OAUTH INTEGRATION ================= */
 
-function loginWithGoogle() {
-    currentUser = {
-        name: 'Google User',
-        email: 'user@gmail.com',
-        binanceAddress: ''
-    };
-    localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
-    applyUserSession();
+function initGoogleAuth() {
+    if (window.google && window.google.accounts) {
+        window.google.accounts.id.initialize({
+            client_id: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com', // Replace with your Google OAuth Client ID
+            callback: handleGoogleCredentialResponse
+        });
+    }
 }
+
+// Decode Google JWT Credential Response
+function parseJwt(token) {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        return null;
+    }
+}
+
+// Handle Google OAuth Login Callback
+function handleGoogleCredentialResponse(response) {
+    if (response && response.credential) {
+        const payload = parseJwt(response.credential);
+        if (payload) {
+            currentUser = {
+                name: payload.name || payload.given_name || 'Google User',
+                email: payload.email,
+                picture: payload.picture || '',
+                binanceAddress: currentUser ? currentUser.binanceAddress : ''
+            };
+            localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+            applyUserSession();
+            alert(`Welcome ${currentUser.name}! Logged in via Google.`);
+        }
+    }
+}
+
+// Fallback Google Sign In Prompt
+function promptGoogleSignIn() {
+    if (window.google && window.google.accounts && window.google.accounts.id) {
+        window.google.accounts.id.prompt();
+    } else {
+        // Simulated Google Sign-In prompt fallback
+        const userEmail = prompt('Enter your Google Email Address to sign in:', 'user@gmail.com');
+        if (userEmail) {
+            const userName = userEmail.split('@')[0];
+            currentUser = {
+                name: userName.charAt(0).toUpperCase() + userName.slice(1),
+                email: userEmail,
+                picture: 'https://lh3.googleusercontent.com/a/default-user=s96-c',
+                binanceAddress: ''
+            };
+            localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+            applyUserSession();
+        }
+    }
+}
+
+/* ================= EMAIL AUTHENTICATION HANDLERS ================= */
 
 function handleEmailLogin(e) {
     e.preventDefault();

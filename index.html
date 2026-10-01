@@ -24,6 +24,8 @@
             }
         }
     </script>
+    <!-- Google Identity Services (GSI) SDK -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Google Fonts & FontAwesome -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -58,6 +60,7 @@
                 <!-- Logged In User View (Hidden when logged out) -->
                 <div id="auth-nav-user" class="hidden items-center gap-3">
                     <div class="flex items-center gap-2.5 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-2xl">
+                        <img id="user-avatar-img" src="" alt="Avatar" class="w-7 h-7 rounded-full hidden">
                         <div class="w-7 h-7 rounded-full bg-emerald-500 text-slate-950 font-bold text-xs flex items-center justify-center" id="user-avatar-text">
                             U
                         </div>
@@ -84,7 +87,7 @@
                 Welcome to <span class="text-emerald-400">KryptPay</span>
             </h1>
             <p class="text-xs sm:text-sm text-slate-400 mt-2">
-                Create an account or login to access Instant UPI to USDT On-Ramp
+                Login with Google or Email to access Instant UPI to USDT On-Ramp
             </p>
         </div>
 
@@ -102,11 +105,32 @@
                 </button>
             </div>
 
-            <!-- Google OAuth Button -->
-            <button type="button" onclick="loginWithGoogle()" 
+            <!-- Official Google Identity OAuth Button Container -->
+            <div class="w-full flex justify-center my-2">
+                <div id="g_id_onload"
+                    data-client_id="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+                    data-context="signin"
+                    data-ux_mode="popup"
+                    data-callback="handleGoogleCredentialResponse"
+                    data-auto_prompt="false">
+                </div>
+
+                <div class="g_id_signin w-full flex justify-center"
+                    data-type="standard"
+                    data-shape="rectangular"
+                    data-theme="filled_black"
+                    data-text="continue_with"
+                    data-size="large"
+                    data-logo_alignment="left"
+                    data-width="360">
+                </div>
+            </div>
+
+            <!-- Custom Fallback Google OAuth Button -->
+            <button type="button" onclick="promptGoogleSignIn()" 
                 class="w-full bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs py-3 px-4 rounded-xl flex items-center justify-center gap-3 transition-all">
                 <svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.4 9 5 12 5z"/><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"/><path fill="#FBBC05" d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.9 7.3C.7 9.7 0 10.8 0 12.5s.7 2.8 1.9 5.2l3.7-2.9z"/><path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.4-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z"/></svg>
-                <span>Continue with Google</span>
+                <span>Google OAuth Sign-In</span>
             </button>
 
             <div class="flex items-center gap-3">
