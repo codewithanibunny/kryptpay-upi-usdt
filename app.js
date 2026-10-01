@@ -1,14 +1,7 @@
-// Application State & Pre-seeded Accounts
+// Launch Application State
 let usdtRate = 89.50;
 let currentUser = null;
 let currentPollInterval = null;
-
-// Demo account
-const demoAccount = {
-    name: 'Demo Trader',
-    email: 'demo@kryptpay.com',
-    binanceAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F'
-};
 
 document.addEventListener('DOMContentLoaded', () => {
     fetchLiveRate();
@@ -82,17 +75,11 @@ function switchAuthTab(tab) {
 
 /* ================= AUTHENTICATION HANDLERS ================= */
 
-function fillDemoCredentials() {
-    currentUser = demoAccount;
-    localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
-    applyUserSession();
-}
-
 function loginWithGoogle() {
     currentUser = {
         name: 'Google User',
         email: 'user@gmail.com',
-        binanceAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F'
+        binanceAddress: ''
     };
     localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
     applyUserSession();
@@ -101,11 +88,17 @@ function loginWithGoogle() {
 function handleEmailLogin(e) {
     e.preventDefault();
     const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+
+    if (!email || !password) {
+        alert('Please fill in email and password.');
+        return;
+    }
     
     currentUser = {
         name: email.split('@')[0],
         email: email,
-        binanceAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F'
+        binanceAddress: ''
     };
     
     localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
@@ -116,7 +109,13 @@ function handleRegistration(e) {
     e.preventDefault();
     const name = document.getElementById('reg-name').value.trim();
     const email = document.getElementById('reg-email').value.trim();
+    const password = document.getElementById('reg-password').value;
     const binanceAddress = document.getElementById('reg-binance-address').value.trim();
+
+    if (!name || !email || !password) {
+        alert('Please fill in all required fields.');
+        return;
+    }
 
     if (!/^0x[a-fA-F0-9]{40}$/.test(binanceAddress)) {
         alert('Please enter a valid 0x... BEP20 Binance Address');
@@ -240,7 +239,7 @@ async function initiateMPXPayInOrder() {
             body: JSON.stringify({
                 amount: inrVal,
                 binanceAddress: address,
-                userEmail: currentUser ? currentUser.email : 'guest@kryptpay.com'
+                userEmail: currentUser ? currentUser.email : 'user@kryptpay.com'
             })
         });
 
@@ -249,7 +248,6 @@ async function initiateMPXPayInOrder() {
         payBtn.innerHTML = originalText;
 
         if (data.status === 1 && data.payment_url) {
-            // Show Order Tracking Card
             document.getElementById('pay-amount-heading').innerText = `₹${parseFloat(data.amount).toLocaleString('en-IN')} INR`;
             document.getElementById('mpx-order-ref').innerText = data.merchant_order_no;
             
@@ -271,7 +269,7 @@ async function initiateMPXPayInOrder() {
         payBtn.disabled = false;
         payBtn.innerHTML = originalText;
         console.error('Error initiating MPXPays PayIn Order:', err);
-        alert('Server Connection Error. Make sure server is running on Port 8080.');
+        alert('Server Connection Error.');
     }
 }
 
@@ -287,7 +285,6 @@ function startOrderPolling(orderNo) {
                 if (data.status === 1 && data.orderStatus === 'PAID') {
                     clearInterval(currentPollInterval);
                     
-                    // Show Success Modal with Binance TxHash and UTR
                     document.getElementById('modal-inr').innerText = `₹${data.amount} INR`;
                     document.getElementById('modal-usdt').innerText = `${data.usdtAmount} USDT (BEP20)`;
                     document.getElementById('modal-address').innerText = data.binanceAddress;
@@ -301,26 +298,6 @@ function startOrderPolling(orderNo) {
             console.log('Polling error:', e);
         }
     }, 3000);
-}
-
-// Simulate instant webhook payment success for testing
-async function simulatePaymentTest() {
-    const orderNo = document.getElementById('mpx-order-ref').innerText;
-    if (!orderNo || orderNo === '#KP-...') return;
-
-    try {
-        const res = await fetch('/api/simulate-payment-success', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ merchant_order_no: orderNo })
-        });
-        const data = await res.json();
-        if (data.status === 1) {
-            alert('Simulated Webhook Payment Success for Order: ' + orderNo);
-        }
-    } catch (e) {
-        console.error('Simulation error', e);
-    }
 }
 
 function closeSuccessModal() {
