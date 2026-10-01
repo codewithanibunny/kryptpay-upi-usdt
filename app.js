@@ -107,33 +107,26 @@ function hideAuthError() {
     }
 }
 
-// Switch Dashboard View Tabs (Buy vs Withdraw vs History)
+// Switch Dashboard View Tabs (Buy vs History)
 function switchDashboardTab(tabName) {
     const buyBtn = document.getElementById('dash-tab-buy');
-    const withdrawBtn = document.getElementById('dash-tab-withdraw');
     const historyBtn = document.getElementById('dash-tab-history');
 
     const buyContent = document.getElementById('dash-content-buy');
-    const withdrawContent = document.getElementById('dash-content-withdraw');
     const historyContent = document.getElementById('dash-content-history');
 
-    buyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
-    withdrawBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
-    historyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
+    if (buyBtn) buyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
+    if (historyBtn) historyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
 
-    buyContent.classList.add('hidden');
-    withdrawContent.classList.add('hidden');
-    historyContent.classList.add('hidden');
+    if (buyContent) buyContent.classList.add('hidden');
+    if (historyContent) historyContent.classList.add('hidden');
 
     if (tabName === 'buy') {
-        buyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-emerald-500 text-slate-950 shadow-lg flex items-center justify-center gap-1.5 transition-all";
-        buyContent.classList.remove('hidden');
-    } else if (tabName === 'withdraw') {
-        withdrawBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-amber-500 text-slate-950 shadow-lg flex items-center justify-center gap-1.5 transition-all";
-        withdrawContent.classList.remove('hidden');
+        if (buyBtn) buyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-emerald-500 text-slate-950 shadow-lg flex items-center justify-center gap-1.5 transition-all";
+        if (buyContent) buyContent.classList.remove('hidden');
     } else if (tabName === 'history') {
-        historyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-slate-800 text-emerald-400 border border-slate-700 shadow-lg flex items-center justify-center gap-1.5 transition-all";
-        historyContent.classList.remove('hidden');
+        if (historyBtn) historyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-slate-800 text-emerald-400 border border-slate-700 shadow-lg flex items-center justify-center gap-1.5 transition-all";
+        if (historyContent) historyContent.classList.remove('hidden');
         loadUserTransactionLedger();
     }
 }
@@ -399,13 +392,32 @@ async function fetchLiveRate() {
 }
 
 function calculateUsdt() {
-    const inrVal = parseFloat(document.getElementById('inr-amount').value);
+    const inrInput = document.getElementById('inr-amount');
+    if (!inrInput) return;
+    const inrVal = parseFloat(inrInput.value);
     const outputElem = document.getElementById('usdt-output');
+    const fee11Elem = document.getElementById('fee-collection-amount');
+    const feeFixedElem = document.getElementById('fee-fixed-amount');
+    const netInrElem = document.getElementById('net-inr-amount');
+
     if (isNaN(inrVal) || inrVal <= 0) {
-        outputElem.innerText = '0.00';
+        if (outputElem) outputElem.innerText = '0.00';
+        if (fee11Elem) fee11Elem.innerText = '₹0.00';
+        if (feeFixedElem) feeFixedElem.innerText = '₹10.00';
+        if (netInrElem) netInrElem.innerText = '₹0.00';
         return;
     }
-    outputElem.innerText = (inrVal / usdtRate).toFixed(2);
+
+    const collectionFee = inrVal * 0.11;
+    const fixedFee = 10.00;
+    const totalFee = collectionFee + fixedFee;
+    const netInr = Math.max(0, inrVal - totalFee);
+    const usdtAmount = (netInr / usdtRate).toFixed(2);
+
+    if (outputElem) outputElem.innerText = usdtAmount;
+    if (fee11Elem) fee11Elem.innerText = `₹${collectionFee.toFixed(2)}`;
+    if (feeFixedElem) feeFixedElem.innerText = `₹${fixedFee.toFixed(2)}`;
+    if (netInrElem) netInrElem.innerText = `₹${netInr.toFixed(2)}`;
 }
 
 function calculateWithdrawInr() {

@@ -15,14 +15,16 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, '/')));
 
-// MPXPays Merchant Configuration Credentials
+// MPXPays Merchant Configuration Credentials & Fee Rates
 const MPX_CONFIG = {
     merchantId: process.env.MPX_MERCHANT_ID || '953045',
     apiKey: process.env.MPX_API_KEY || 'c41b55a4b5744069fba2c4744b6b5552cb285971b8f84cb2ad89fe8d959f98a5',
     settlementKey: process.env.MPX_SETTLEMENT_KEY || '671AF46538AD9F2407F8E8184C9C695ACEF8D79E32A2D8AAF6924E0843CAA439',
     payInEndpoint: 'https://api.mpxpayss.com/api/payIn',
-    payoutEndpoint: 'https://api.mpxpayss.com/api/payout',
-    callbackUrl: process.env.MPX_CALLBACK_URL || 'http://localhost:5000/api/mpxpay-webhook'
+    callbackUrl: process.env.MPX_CALLBACK_URL || 'http://localhost:5000/api/mpxpay-webhook',
+    // Fee Rates
+    collectionFeeRatePercent: 11.00, // 11%
+    additionalFeeInr: 10.00         // ₹10.00
 };
 
 // Registered Users Database (email -> user object)
@@ -31,7 +33,6 @@ const usersDb = new Map();
 // In-Memory Order Storage & User Ledgers
 const ordersDb = new Map(); // merchant_order_no -> order object
 const userOrdersDb = new Map(); // userEmail -> Array of merchant_order_no
-const payoutsDb = new Map(); // merchant_order_no -> payout object
 
 // Helper: Calculate MD5 Signature as per MPXPays Specs
 function calculateMD5Signature(apiKey, amount2Dec, callbackUrl, merchantId, merchantOrderNo) {
@@ -51,7 +52,6 @@ app.post('/api/auth/register', (req, res) => {
 
     const emailKey = email.toLowerCase().trim();
 
-    // Check if user already exists
     if (usersDb.has(emailKey)) {
         const existing = usersDb.get(emailKey);
         if (existing.isVerified) {
@@ -59,28 +59,25 @@ app.post('/api/auth/register', (req, res) => {
         }
     }
 
-    // Generate 6-Digit Email Verification OTP Code
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     const newUser = {
         name,
         email: emailKey,
-        password, // In production, use bcrypt.hashSync(password, 10)
+        password,
         binanceAddress,
         isVerified: false,
         otpCode,
-        otpExpires: Date.now() + 10 * 60 * 1000 // 10 mins
+        otpExpires: Date.now() + 10 * 60 * 1000
     };
 
     usersDb.set(emailKey, newUser);
-
     console.log(`\n📧 [EMAIL OTP GENERATED] Sent to ${emailKey} | OTP Code: ${otpCode}`);
 
     res.json({
         status: 1,
         message: `Verification code sent to ${emailKey}`,
         email: emailKey,
-        // For local development testing, return OTP in response so user can enter it
         devOtp: otpCode
     });
 });
@@ -110,7 +107,6 @@ app.post('/api/auth/verify-otp', (req, res) => {
         return res.status(400).json({ status: 0, message: 'Verification Code expired! Please request a new one.' });
     }
 
-    // Mark user as verified
     user.isVerified = true;
     user.otpCode = null;
     usersDb.set(emailKey, user);
@@ -151,7 +147,7 @@ app.post('/api/auth/login', (req, res) => {
 
     if (!user.isVerified) {
         return res.status(401).json({
-            status: 2, // Requires OTP Verification
+            status: 2,
             message: 'Email not verified! Enter the verification OTP.',
             email: emailKey
         });
@@ -171,7 +167,7 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// AUTH 4: GOOGLE OAUTH AUTHENTICATION (VERIFIED BY GOOGLE)
+// AUTH 4: GOOGLE OAUTH AUTHENTICATION
 // -------------------------------------------------------------
 app.post('/api/auth/google', (req, res) => {
     const { email, name, picture } = req.body;
@@ -184,7 +180,6 @@ app.post('/api/auth/google', (req, res) => {
     let user = usersDb.get(emailKey);
 
     if (!user) {
-        // Create verified account for Google OAuth user
         user = {
             name: name || emailKey.split('@')[0],
             email: emailKey,
@@ -212,7 +207,7 @@ app.post('/api/auth/google', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 1. API: CREATE MPXPAYS PAYIN ORDER (BUY USDT)
+// 1. API: CREATE MPXPAYS PAYIN ORDER (BUY USDT WITH 11% + ₹10 FEE)
 // -------------------------------------------------------------
 app.post('/api/create-payin-order', async (req, res) => {
     try {
@@ -229,6 +224,11 @@ app.post('/api/create-payin-order', async (req, res) => {
 
         const formattedAmount = numAmount.toFixed(2);
         const merchantOrderNo = `KP-BUY-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        // Calculate Fee Breakdown
+        const feePercent = (numAmount * (MPX_CONFIG.collectionFeeRatePercent / 100)).toFixed(2);
+        const feeTotal = (parseFloat(feePercent) + MPX_CONFIG.additionalFeeInr).toFixed(2);
+        const netAmount = (numAmount - parseFloat(feeTotal)).toFixed(2);
 
         const protocol = req.headers['x-forwarded-proto'] || req.protocol;
         const host = req.headers['x-forwarded-host'] || req.headers.host;
@@ -254,13 +254,15 @@ app.post('/api/create-payin-order', async (req, res) => {
             signature: signature
         };
 
-        console.log(`\n📲 [PayIn Order] ${merchantOrderNo} for ${emailKey} (₹${formattedAmount})`);
+        console.log(`\n📲 [PayIn Order] ${merchantOrderNo} (₹${formattedAmount} | Fee: ₹${feeTotal} | Net: ₹${netAmount})`);
 
         const newOrder = {
             merchant_order_no: merchantOrderNo,
             type: 'BUY',
             amount: formattedAmount,
-            usdtAmount: (numAmount / 89.50).toFixed(2),
+            feeTotal: feeTotal,
+            netAmount: netAmount,
+            usdtAmount: (parseFloat(netAmount) / 89.50).toFixed(2),
             binanceAddress: binanceAddress,
             userEmail: emailKey,
             status: 'PENDING',
@@ -321,67 +323,7 @@ app.post('/api/create-payin-order', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 2. API: CREATE PAYOUT ORDER (SELL USDT / WITHDRAW TO BANK)
-// -------------------------------------------------------------
-app.post('/api/create-payout-order', async (req, res) => {
-    try {
-        const { usdtAmount, userEmail, bankName, accountNumber, ifscCode, accountHolderName } = req.body;
-
-        if (!usdtAmount || !accountNumber || !ifscCode || !accountHolderName) {
-            return res.status(400).json({ status: 0, message: 'Missing bank or payout details' });
-        }
-
-        const usdtVal = parseFloat(usdtAmount);
-        if (isNaN(usdtVal) || usdtVal <= 0) {
-            return res.status(400).json({ status: 0, message: 'Invalid USDT withdrawal amount' });
-        }
-
-        const inrPayoutAmount = (usdtVal * 87.00).toFixed(2);
-        const merchantOrderNo = `KP-WITHDRAW-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-        const emailKey = (userEmail || 'guest@kryptpay.com').toLowerCase();
-
-        const payoutOrder = {
-            merchant_order_no: merchantOrderNo,
-            type: 'WITHDRAW',
-            amount: inrPayoutAmount,
-            usdtAmount: usdtVal.toFixed(2),
-            userEmail: emailKey,
-            bankName: bankName || 'Bank Account',
-            accountNumber: accountNumber,
-            ifscCode: ifscCode,
-            accountHolderName: accountHolderName,
-            status: 'PROCESSING',
-            utr: `WD-UTR-${Math.floor(100000000000 + Math.random() * 900000000000)}`,
-            created_at: new Date().toISOString()
-        };
-
-        payoutsDb.set(merchantOrderNo, payoutOrder);
-        ordersDb.set(merchantOrderNo, payoutOrder);
-
-        if (!userOrdersDb.has(emailKey)) {
-            userOrdersDb.set(emailKey, []);
-        }
-        userOrdersDb.get(emailKey).unshift(merchantOrderNo);
-
-        console.log(`\n💸 [Payout Order] ${merchantOrderNo} for ${emailKey} (${usdtVal} USDT ➡️ ₹${inrPayoutAmount})`);
-
-        res.json({
-            status: 1,
-            message: 'Withdrawal request submitted successfully',
-            merchant_order_no: merchantOrderNo,
-            inrAmount: inrPayoutAmount,
-            usdtAmount: usdtVal.toFixed(2)
-        });
-
-    } catch (err) {
-        console.error('Error in /api/create-payout-order:', err.message);
-        res.status(500).json({ status: 0, message: 'Internal Server Error' });
-    }
-});
-
-// -------------------------------------------------------------
-// 3. WEBHOOK: MPXPAYS PAYMENT CALLBACK LISTENER
+// 2. WEBHOOK: MPXPAYS PAYMENT CALLBACK LISTENER
 // -------------------------------------------------------------
 app.post('/api/mpxpay-webhook', (req, res) => {
     try {
@@ -424,7 +366,7 @@ app.post('/api/mpxpay-webhook', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 4. API: GET USER PER-ACCOUNT TRANSACTION HISTORY
+// 3. API: GET USER PER-ACCOUNT TRANSACTION HISTORY
 // -------------------------------------------------------------
 app.get('/api/user-transactions/:email', (req, res) => {
     const emailKey = req.params.email.toLowerCase();
@@ -441,7 +383,7 @@ app.get('/api/user-transactions/:email', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 5. API: CHECK SINGLE ORDER STATUS
+// 4. API: CHECK SINGLE ORDER STATUS
 // -------------------------------------------------------------
 app.get('/api/check-order-status/:orderNo', (req, res) => {
     const orderNo = req.params.orderNo;
@@ -467,7 +409,8 @@ app.get('/api/check-order-status/:orderNo', (req, res) => {
 // Start Express Server
 app.listen(PORT, () => {
     console.log(`====================================================`);
-    console.log(`👑 KryptPay Executive Wealth Server running on Port ${PORT}`);
+    console.log(`👑 KryptPay Executive Server running on Port ${PORT}`);
+    console.log(`💸 Collection Fee: 11.00% + ₹10.00`);
     console.log(`📡 Webhook Endpoint: http://localhost:${PORT}/api/mpxpay-webhook`);
     console.log(`====================================================`);
 });
