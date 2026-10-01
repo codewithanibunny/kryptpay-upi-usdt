@@ -72,12 +72,12 @@ function applyUserSession() {
     }
 
     if (currentUser.binanceAddress) {
-        const addrInput = document.getElementById('binance-address');
-        addrInput.value = currentUser.binanceAddress;
-        document.getElementById('address-saved-indicator').classList.remove('hidden');
-        validateAddress();
+        const convertAddrInput = document.getElementById('convert-binance-address');
+        if (convertAddrInput) convertAddrInput.value = currentUser.binanceAddress;
+        validateConvertAddress();
     }
 
+    updateWalletBalanceDisplay();
     loadUserTransactionLedger();
 }
 
@@ -116,23 +116,31 @@ function hideAuthError() {
     }
 }
 
-// Switch Dashboard View Tabs (Buy vs History)
+// Switch Dashboard View Tabs (Deposit vs Convert vs History)
 function switchDashboardTab(tabName) {
-    const buyBtn = document.getElementById('dash-tab-buy');
+    const depositBtn = document.getElementById('dash-tab-deposit');
+    const convertBtn = document.getElementById('dash-tab-convert');
     const historyBtn = document.getElementById('dash-tab-history');
 
-    const buyContent = document.getElementById('dash-content-buy');
+    const depositContent = document.getElementById('dash-content-deposit');
+    const convertContent = document.getElementById('dash-content-convert');
     const historyContent = document.getElementById('dash-content-history');
 
-    if (buyBtn) buyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
+    if (depositBtn) depositBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
+    if (convertBtn) convertBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
     if (historyBtn) historyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
 
-    if (buyContent) buyContent.classList.add('hidden');
+    if (depositContent) depositContent.classList.add('hidden');
+    if (convertContent) convertContent.classList.add('hidden');
     if (historyContent) historyContent.classList.add('hidden');
 
-    if (tabName === 'buy') {
-        if (buyBtn) buyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-emerald-500 text-slate-950 shadow-lg flex items-center justify-center gap-1.5 transition-all";
-        if (buyContent) buyContent.classList.remove('hidden');
+    if (tabName === 'deposit') {
+        if (depositBtn) depositBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-emerald-500 text-slate-950 shadow-lg flex items-center justify-center gap-1.5 transition-all";
+        if (depositContent) depositContent.classList.remove('hidden');
+    } else if (tabName === 'convert') {
+        if (convertBtn) convertBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-amber-500 text-slate-950 shadow-lg flex items-center justify-center gap-1.5 transition-all";
+        if (convertContent) convertContent.classList.remove('hidden');
+        updateWalletBalanceDisplay();
     } else if (tabName === 'history') {
         if (historyBtn) historyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-slate-800 text-emerald-400 border border-slate-700 shadow-lg flex items-center justify-center gap-1.5 transition-all";
         if (historyContent) historyContent.classList.remove('hidden');
@@ -501,44 +509,192 @@ async function fetchLiveRate() {
     }
 }
 
-function calculateUsdt() {
+async function updateWalletBalanceDisplay() {
+    if (!currentUser || !currentUser.email) return;
+
+    try {
+        const res = await fetch(`/api/user-balance/${encodeURIComponent(currentUser.email)}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.status === 1) {
+                currentUser.walletBalance = data.walletBalance || 0;
+                localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+            }
+        }
+    } catch (e) {
+        console.log('Balance fetch note:', e);
+    }
+
+    const bal = currentUser ? (currentUser.walletBalance || 0) : 0;
+    const formatted = `₹${parseFloat(bal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const headerBal = document.getElementById('wallet-balance-display');
+    const convertBal = document.getElementById('convert-avail-balance');
+
+    if (headerBal) headerBal.innerText = formatted;
+    if (convertBal) convertBal.innerText = formatted;
+}
+
+function calculateDepositCredit() {
     const inrInput = document.getElementById('inr-amount');
     if (!inrInput) return;
     const inrVal = parseFloat(inrInput.value);
-    const outputElem = document.getElementById('usdt-output');
-    const fee11Elem = document.getElementById('fee-collection-amount');
-    const feeFixedElem = document.getElementById('fee-fixed-amount');
-    const netInrElem = document.getElementById('net-inr-amount');
+
+    const grossElem = document.getElementById('dep-gross-amount');
+    const feeElem = document.getElementById('dep-fee-amount');
+    const netElem = document.getElementById('dep-net-credit');
+
+    if (isNaN(inrVal) || inrVal <= 0) {
+        if (grossElem) grossElem.innerText = '₹0.00';
+        if (feeElem) feeElem.innerText = '₹0.00';
+        if (netElem) netElem.innerText = '₹0.00';
+        return;
+    }
+
+    const fee = inrVal * 0.11;
+    const netCredit = Math.max(0, inrVal - fee);
+
+    if (grossElem) grossElem.innerText = `₹${inrVal.toFixed(2)}`;
+    if (feeElem) feeElem.innerText = `₹${fee.toFixed(2)}`;
+    if (netElem) netElem.innerText = `₹${netCredit.toFixed(2)}`;
+}
+
+function calculateConvertUsdt() {
+    const inrInput = document.getElementById('convert-inr-amount');
+    if (!inrInput) return;
+    const inrVal = parseFloat(inrInput.value);
+    const outputElem = document.getElementById('convert-usdt-output');
 
     if (isNaN(inrVal) || inrVal <= 0) {
         if (outputElem) outputElem.innerText = '0.00';
-        if (fee11Elem) fee11Elem.innerText = '₹0.00';
-        if (feeFixedElem) feeFixedElem.innerText = '₹10.00';
-        if (netInrElem) netInrElem.innerText = '₹0.00';
         return;
     }
 
-    const collectionFee = inrVal * 0.11;
-    const fixedFee = 10.00;
-    const totalFee = collectionFee + fixedFee;
-    const netInr = Math.max(0, inrVal - totalFee);
-    const usdtAmount = (netInr / usdtRate).toFixed(2);
-
+    const usdtAmount = (inrVal / usdtRate).toFixed(2);
     if (outputElem) outputElem.innerText = usdtAmount;
-    if (fee11Elem) fee11Elem.innerText = `₹${collectionFee.toFixed(2)}`;
-    if (feeFixedElem) feeFixedElem.innerText = `₹${fixedFee.toFixed(2)}`;
-    if (netInrElem) netInrElem.innerText = `₹${netInr.toFixed(2)}`;
 }
 
-function calculateWithdrawInr() {
-    const usdtVal = parseFloat(document.getElementById('withdraw-usdt-amount').value);
-    const outputElem = document.getElementById('withdraw-inr-output');
-    if (isNaN(usdtVal) || usdtVal <= 0) {
-        outputElem.innerText = '₹0.00';
+function setConvertMaxAmount() {
+    const bal = currentUser ? (currentUser.walletBalance || 0) : 0;
+    const input = document.getElementById('convert-inr-amount');
+    if (input) {
+        input.value = Math.floor(bal);
+        calculateConvertUsdt();
+    }
+}
+
+function validateConvertAddress() {
+    const addrInput = document.getElementById('convert-binance-address');
+    if (!addrInput) return false;
+    const val = addrInput.value.trim();
+    const status = document.getElementById('convert-address-status');
+
+    if (!val) {
+        addrInput.classList.remove('border-emerald-500', 'border-red-500');
+        if (status) {
+            status.innerText = 'Binance App ➡️ Deposit ➡️ USDT ➡️ Choose "BNB Smart Chain (BEP20)"';
+            status.className = 'text-[11px] text-slate-500 mt-1';
+        }
+        return false;
+    }
+
+    if (/^0x[a-fA-F0-9]{40}$/.test(val)) {
+        addrInput.classList.remove('border-red-500');
+        addrInput.classList.add('border-emerald-500');
+        if (status) {
+            status.innerText = '✓ Valid BEP20 Binance Address';
+            status.className = 'text-[11px] text-emerald-400 mt-1 font-semibold';
+        }
+        return true;
+    } else {
+        addrInput.classList.remove('border-emerald-500');
+        addrInput.classList.add('border-red-500');
+        if (status) {
+            status.innerText = '⚠️ Must be a valid 0x... BEP20 address!';
+            status.className = 'text-[11px] text-red-400 mt-1 font-semibold';
+        }
+        return false;
+    }
+}
+
+async function pasteConvertClipboard() {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+            document.getElementById('convert-binance-address').value = text.trim();
+            validateConvertAddress();
+        }
+    } catch (e) {
+        alert('Paste shortcut: Ctrl+V into the box.');
+    }
+}
+
+async function submitWalletConversion() {
+    const inrInput = document.getElementById('convert-inr-amount');
+    const addrInput = document.getElementById('convert-binance-address');
+
+    const inrVal = parseFloat(inrInput ? inrInput.value : 0);
+    const address = addrInput ? addrInput.value.trim() : '';
+
+    if (isNaN(inrVal) || inrVal <= 0) {
+        alert('Please enter a valid INR conversion amount.');
         return;
     }
-    const inrVal = (usdtVal * usdtPayoutRate).toFixed(2);
-    outputElem.innerText = `₹${parseFloat(inrVal).toLocaleString('en-IN')}`;
+
+    if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+        alert('Please enter a valid Binance BEP20 USDT deposit address (starts with 0x).');
+        return;
+    }
+
+    const availBal = currentUser ? (currentUser.walletBalance || 0) : 0;
+    if (availBal < inrVal) {
+        alert(`Insufficient Wallet Balance! Available: ₹${availBal.toFixed(2)} INR. Please Add Funds first via UPI.`);
+        switchDashboardTab('deposit');
+        return;
+    }
+
+    const convertBtn = document.getElementById('convert-submit-btn');
+    const origText = convertBtn.innerHTML;
+    convertBtn.disabled = true;
+    convertBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Swapping Wallet INR to USDT...`;
+
+    try {
+        const res = await fetch('/api/wallet/convert-usdt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userEmail: currentUser ? currentUser.email : 'user@kryptpay.com',
+                inrAmount: inrVal,
+                binanceAddress: address
+            })
+        });
+
+        const data = await res.json();
+        convertBtn.disabled = false;
+        convertBtn.innerHTML = origText;
+
+        if (data.status === 1) {
+            currentUser.walletBalance = data.newBalance;
+            localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+            updateWalletBalanceDisplay();
+
+            document.getElementById('modal-inr').innerText = `₹${inrVal.toFixed(2)} INR`;
+            document.getElementById('modal-usdt').innerText = `${data.usdtAmount} USDT (BEP20)`;
+            document.getElementById('modal-address').innerText = address;
+            document.getElementById('modal-utr').innerText = `SWAP-${Date.now()}`;
+            document.getElementById('modal-txhash').innerText = data.txHash ? data.txHash.substring(0, 14) + '...' : '0x9b3f...e82c';
+
+            document.getElementById('success-modal').classList.remove('hidden');
+            loadUserTransactionLedger();
+        } else {
+            alert('Conversion Error: ' + data.message);
+        }
+    } catch (err) {
+        convertBtn.disabled = false;
+        convertBtn.innerHTML = origText;
+        console.error('Wallet conversion error:', err);
+        alert('Server connection error during wallet conversion.');
+    }
 }
 
 function setQuickAmount(amt) {

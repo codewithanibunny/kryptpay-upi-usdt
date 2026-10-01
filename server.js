@@ -144,7 +144,8 @@ app.post('/api/auth/verify-otp', (req, res) => {
         user: {
             name: user.name,
             email: user.email,
-            binanceAddress: user.binanceAddress
+            binanceAddress: user.binanceAddress,
+            walletBalance: user.walletBalance || 0.00
         }
     });
 });
@@ -186,7 +187,8 @@ app.post('/api/auth/login', (req, res) => {
         user: {
             name: user.name,
             email: user.email,
-            binanceAddress: user.binanceAddress
+            binanceAddress: user.binanceAddress,
+            walletBalance: user.walletBalance || 0.00
         }
     });
 });
@@ -227,7 +229,8 @@ app.post('/api/auth/google', (req, res) => {
             name: user.name,
             email: user.email,
             picture: user.picture,
-            binanceAddress: user.binanceAddress
+            binanceAddress: user.binanceAddress,
+            walletBalance: user.walletBalance || 0.00
         }
     });
 });
@@ -362,10 +365,11 @@ app.post('/api/mpxpay-webhook', (req, res) => {
 
         const existingOrder = ordersDb.get(merchant_order_no) || {
             merchant_order_no,
-            type: 'BUY',
+            type: 'DEPOSIT',
             amount: amount || '500.00',
             usdtAmount: ((parseFloat(amount) || 500) / 89.50).toFixed(2),
-            binanceAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F'
+            binanceAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+            userEmail: 'guest@kryptpay.com'
         };
 
         if (status === 'success') {
@@ -380,6 +384,18 @@ app.post('/api/mpxpay-webhook', (req, res) => {
 
             ordersDb.set(merchant_order_no, existingOrder);
 
+            // Auto-Credit INR to User Wallet Balance (Net Amount after 11% fee)
+            const grossAmt = parseFloat(amount || existingOrder.amount || 0);
+            const netCredited = (grossAmt * 0.89).toFixed(2);
+            
+            const emailKey = (existingOrder.userEmail || '').toLowerCase();
+            if (usersDb.has(emailKey)) {
+                const u = usersDb.get(emailKey);
+                u.walletBalance = parseFloat(((u.walletBalance || 0) + parseFloat(netCredited)).toFixed(2));
+                usersDb.set(emailKey, u);
+                console.log(`💳 [WALLET CREDITED] ${emailKey} credited +₹${netCredited} INR | New Balance: ₹${u.walletBalance}`);
+            }
+
             return res.status(200).json({ status: 'success', message: 'Webhook processed' });
         } else {
             existingOrder.status = 'FAILED';
@@ -392,8 +408,95 @@ app.post('/api/mpxpay-webhook', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 3. API: GET USER PER-ACCOUNT TRANSACTION HISTORY
+// 3. API: CONVERT WALLET INR BALANCE TO USDT
 // -------------------------------------------------------------
+app.post('/api/wallet/convert-usdt', (req, res) => {
+    try {
+        const { userEmail, inrAmount, binanceAddress } = req.body;
+
+        if (!userEmail || !inrAmount || !binanceAddress) {
+            return res.status(400).json({ status: 0, message: 'All conversion fields are required.' });
+        }
+
+        const emailKey = userEmail.toLowerCase().trim();
+        const user = usersDb.get(emailKey);
+
+        if (!user) {
+            return res.status(404).json({ status: 0, message: 'User account not found.' });
+        }
+
+        const numInr = parseFloat(inrAmount);
+        if (isNaN(numInr) || numInr <= 0) {
+            return res.status(400).json({ status: 0, message: 'Invalid INR amount.' });
+        }
+
+        const currentBal = user.walletBalance || 0;
+        if (currentBal < numInr) {
+            return res.status(400).json({ 
+                status: 0, 
+                message: `Insufficient Wallet Balance! Available: ₹${currentBal.toFixed(2)} INR. Please Add Funds first.` 
+            });
+        }
+
+        // Deduct from Wallet Balance & Calculate USDT
+        user.walletBalance = parseFloat((currentBal - numInr).toFixed(2));
+        usersDb.set(emailKey, user);
+
+        const usdtAmount = (numInr / 89.50).toFixed(2);
+        const merchantOrderNo = `KP-CONV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const txHash = '0x' + crypto.randomBytes(32).toString('hex');
+
+        const newOrder = {
+            merchant_order_no: merchantOrderNo,
+            type: 'CONVERT',
+            amount: numInr.toFixed(2),
+            feeTotal: '0.00',
+            netAmount: numInr.toFixed(2),
+            usdtAmount: usdtAmount,
+            binanceAddress: binanceAddress,
+            userEmail: emailKey,
+            status: 'COMPLETED',
+            utr: `SWAP-${Date.now()}`,
+            txHash: txHash,
+            created_at: new Date().toISOString()
+        };
+
+        ordersDb.set(merchantOrderNo, newOrder);
+
+        if (!userOrdersDb.has(emailKey)) {
+            userOrdersDb.set(emailKey, []);
+        }
+        userOrdersDb.get(emailKey).unshift(merchantOrderNo);
+
+        console.log(`🔄 [WALLET CONVERTED] ${emailKey} converted ₹${numInr} INR ➔ ${usdtAmount} USDT | New Balance: ₹${user.walletBalance}`);
+
+        res.json({
+            status: 1,
+            message: 'Conversion Successful!',
+            newBalance: user.walletBalance,
+            usdtAmount: usdtAmount,
+            txHash: txHash,
+            merchant_order_no: merchantOrderNo
+        });
+    } catch (err) {
+        console.error('Error in convert-usdt:', err);
+        res.status(500).json({ status: 0, message: 'Internal Server Error' });
+    }
+});
+
+// -------------------------------------------------------------
+// 4. API: GET USER BALANCE & TRANSACTION HISTORY
+// -------------------------------------------------------------
+app.get('/api/user-balance/:email', (req, res) => {
+    const emailKey = req.params.email.toLowerCase();
+    const user = usersDb.get(emailKey);
+    res.json({
+        status: 1,
+        email: emailKey,
+        walletBalance: user ? (user.walletBalance || 0.00) : 0.00
+    });
+});
+
 app.get('/api/user-transactions/:email', (req, res) => {
     const emailKey = req.params.email.toLowerCase();
     const orderNos = userOrdersDb.get(emailKey) || [];
@@ -403,6 +506,7 @@ app.get('/api/user-transactions/:email', (req, res) => {
     res.json({
         status: 1,
         email: emailKey,
+        walletBalance: usersDb.has(emailKey) ? usersDb.get(emailKey).walletBalance || 0.00 : 0.00,
         totalOrders: userOrdersList.length,
         transactions: userOrdersList
     });
