@@ -155,6 +155,7 @@ let googleTokenClient = null;
 
 function initGoogleAuth() {
     window.GOOGLE_CLIENT_ID = CLIENT_ID;
+    checkOAuthRedirectHash();
 
     if (window.google && window.google.accounts) {
         try {
@@ -169,38 +170,57 @@ function initGoogleAuth() {
                 googleTokenClient = window.google.accounts.oauth2.initTokenClient({
                     client_id: CLIENT_ID,
                     scope: 'email profile openid',
-                    callback: async (tokenResponse) => {
-                        if (tokenResponse && tokenResponse.access_token) {
-                            try {
-                                const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                                    headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-                                });
-                                const profile = await userInfoRes.json();
-                                if (profile && profile.email) {
-                                    const res = await fetch('/api/auth/google', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            email: profile.email,
-                                            name: profile.name || profile.given_name,
-                                            picture: profile.picture
-                                        })
-                                    });
-                                    const data = await res.json();
-                                    if (data.status === 1) {
-                                        currentUser = data.user;
-                                        localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
-                                        applyUserSession();
-                                    }
-                                }
-                            } catch (err) {
-                                console.error('Error fetching Google user profile:', err);
-                            }
-                        }
-                    }
+                    callback: handleGoogleTokenResponse
                 });
             } catch (e) {}
         }
+    }
+}
+
+async function handleGoogleTokenResponse(tokenResponse) {
+    if (tokenResponse && tokenResponse.access_token) {
+        await fetchGoogleUserInfo(tokenResponse.access_token);
+    }
+}
+
+async function fetchGoogleUserInfo(accessToken) {
+    try {
+        const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const profile = await userInfoRes.json();
+        if (profile && profile.email) {
+            const res = await fetch('/api/auth/google', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: profile.email,
+                    name: profile.name || profile.given_name,
+                    picture: profile.picture
+                })
+            });
+            const data = await res.json();
+            if (data.status === 1) {
+                currentUser = data.user;
+                localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+                applyUserSession();
+            }
+        }
+    } catch (err) {
+        console.error('Error fetching Google user profile:', err);
+    }
+}
+
+function checkOAuthRedirectHash() {
+    if (window.location.hash && window.location.hash.includes('access_token=')) {
+        try {
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            const token = hashParams.get('access_token');
+            if (token) {
+                window.history.replaceState(null, null, window.location.pathname);
+                fetchGoogleUserInfo(token);
+            }
+        } catch (e) {}
     }
 }
 
@@ -245,6 +265,17 @@ async function handleGoogleCredentialResponse(response) {
 }
 
 async function promptGoogleSignIn() {
+    // 1. Initialize on-the-fly if SDK loaded after DOMContentLoaded
+    if (!googleTokenClient && window.google && window.google.accounts && window.google.accounts.oauth2) {
+        try {
+            googleTokenClient = window.google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: 'email profile openid',
+                callback: handleGoogleTokenResponse
+            });
+        } catch (e) {}
+    }
+
     if (googleTokenClient) {
         googleTokenClient.requestAccessToken();
         return;
@@ -257,17 +288,11 @@ async function promptGoogleSignIn() {
         } catch (e) {}
     }
 
-    // Direct official Google OAuth 2.0 Popup Window URL
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(CLIENT_ID)}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token&scope=${encodeURIComponent('email profile openid')}`;
-    window.open(authUrl, 'GoogleOAuthPopup', 'width=520,height=650,left=450,top=100');
-}
-
-function openGoogleAuthPopup() {
-    const popup = window.open('/google-auth.html', 'GoogleAuthPopup', 'width=520,height=630,left=450,top=100');
-    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-        // Fallback to in-app modal if popups are blocked by browser settings
-        openGoogleAuthModal();
-    }
+    // 2. Fail-safe direct Google OAuth 2.0 URL redirect (never blocked by popup blockers)
+    const redirectUri = window.location.origin + '/';
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent('email profile openid')}`;
+    
+    window.location.href = authUrl;
 }
 
 async function handleCustomGoogleAuthSubmit(e) {
