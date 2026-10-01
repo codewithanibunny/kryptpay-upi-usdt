@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KryptPay — Instant UPI to Binance USDT</title>
+    <title>KryptPay — Executive Wealth & Crypto Gateway</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -12,65 +12,76 @@
             theme: {
                 extend: {
                     colors: {
-                        darkbg: '#090D16',
-                        cardbg: '#111827',
-                        binance: '#F0B90B'
+                        darkbg: '#06090E',
+                        cardbg: '#0F172A',
+                        binance: '#F0B90B',
+                        gold: '#F59E0B'
                     },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
-                        display: ['Outfit', 'sans-serif']
+                        display: ['Outfit', 'sans-serif'],
+                        serif: ['Cinzel', 'serif']
                     }
                 }
             }
         }
     </script>
+    <!-- Optional: Paste your Google Cloud Console Client ID here if available -->
+    <script>
+        window.GOOGLE_CLIENT_ID = ""; // e.g. "123456789-abc.apps.googleusercontent.com"
+    </script>
     <!-- Google Identity Services (GSI) SDK -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Google Fonts & FontAwesome -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-darkbg text-slate-100 font-sans min-h-screen relative selection:bg-emerald-500 selection:text-black">
 
     <!-- Ambient Glowing Orbs -->
-    <div class="fixed top-0 left-1/2 -translate-x-1/2 w-[50rem] h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="fixed top-0 left-1/2 -translate-x-1/2 w-[60rem] h-[30rem] bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="fixed bottom-0 right-10 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
     <!-- Navigation Header -->
-    <header class="border-b border-slate-800 bg-darkbg/90 backdrop-blur-md sticky top-0 z-40">
-        <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+    <header class="border-b border-slate-800/80 bg-darkbg/90 backdrop-blur-md sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 h-20 flex items-center justify-between">
             
             <!-- Logo -->
-            <div class="flex items-center gap-2.5 cursor-pointer" onclick="resetForm()">
-                <div class="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-emerald-500/20">
-                    ⚡
+            <div class="flex items-center gap-3 cursor-pointer" onclick="resetForm()">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-400 to-amber-400 p-[2px] shadow-lg shadow-emerald-500/20">
+                    <div class="w-full h-full bg-darkbg rounded-[10px] flex items-center justify-center">
+                        <i class="fa-solid fa-crown text-amber-400 text-lg"></i>
+                    </div>
                 </div>
-                <span class="font-display font-extrabold text-xl tracking-tight text-white">KryptPay</span>
-                <span class="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30">BINANCE BEP20</span>
+                <div>
+                    <span class="font-serif font-extrabold text-2xl tracking-tight text-white block leading-none">KryptPay</span>
+                    <span class="text-[9px] uppercase font-bold tracking-widest text-amber-400">Executive Wealth</span>
+                </div>
             </div>
 
-            <!-- Header Right: User Account Navigation -->
-            <div class="flex items-center gap-3">
+            <!-- Header Right: Live Rate & Account Navigation -->
+            <div class="flex items-center gap-3 sm:gap-4">
                 <!-- Live Rate Badge -->
-                <div class="flex items-center gap-2 text-xs text-slate-400 bg-slate-900 px-3 py-1.5 rounded-full border border-slate-800">
+                <div class="flex items-center gap-2 text-xs text-slate-300 bg-slate-900/90 px-3.5 py-1.5 rounded-full border border-slate-800 shadow-inner">
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                     <span>Rate: <strong id="header-usdt-rate" class="text-white">1 USDT = ₹89.50</strong></span>
                 </div>
 
                 <!-- Logged In User View (Hidden when logged out) -->
                 <div id="auth-nav-user" class="hidden items-center gap-3">
-                    <div class="flex items-center gap-2.5 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-2xl">
+                    <div class="flex items-center gap-2.5 bg-slate-900 border border-slate-800 px-3.5 py-1.5 rounded-2xl">
                         <img id="user-avatar-img" src="" alt="Avatar" class="w-7 h-7 rounded-full hidden">
                         <div class="w-7 h-7 rounded-full bg-emerald-500 text-slate-950 font-bold text-xs flex items-center justify-center" id="user-avatar-text">
                             U
                         </div>
-                        <div class="text-left text-xs">
+                        <div class="text-left text-xs hidden sm:block">
                             <span id="user-name-display" class="font-bold text-white block leading-tight">User Account</span>
-                            <span class="text-[10px] text-emerald-400 font-mono">Binance Connected</span>
+                            <span class="text-[10px] text-emerald-400 font-mono">Binance BEP20 Connected</span>
                         </div>
                     </div>
-                    <button onclick="logoutUser()" class="text-xs text-slate-400 hover:text-red-400 p-2" title="Logout">
-                        <i class="fa-solid fa-right-from-bracket"></i> Logout
+                    <button onclick="logoutUser()" class="text-xs text-slate-400 hover:text-red-400 p-2 transition-all" title="Logout">
+                        <i class="fa-solid fa-right-from-bracket"></i>
                     </button>
                 </div>
             </div>
@@ -80,19 +91,19 @@
     <!-- SECTION 1: AUTHENTICATION LANDING PAGE (Visible when NOT Logged In) -->
     <section id="auth-landing-view" class="max-w-md mx-auto px-4 py-12">
         <div class="text-center mb-8">
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs text-emerald-400 mb-3 font-semibold">
-                <i class="fa-solid fa-shield-halved"></i> Secure Member Portal
+            <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-900 border border-amber-500/30 text-xs text-amber-400 mb-3 font-semibold">
+                <i class="fa-solid fa-shield-halved"></i> Member Portal
             </div>
-            <h1 class="font-display font-black text-3xl sm:text-4xl text-white tracking-tight">
-                Welcome to <span class="text-emerald-400">KryptPay</span>
+            <h1 class="font-serif font-bold text-3xl sm:text-4xl text-white tracking-tight">
+                Welcome to <span class="bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">KryptPay</span>
             </h1>
             <p class="text-xs sm:text-sm text-slate-400 mt-2">
-                Login with Google or Email to access Instant UPI to USDT On-Ramp
+                Log in or create an account to access Instant UPI & Binance USDT Liquidity
             </p>
         </div>
 
         <!-- Auth Switcher Tabs -->
-        <div class="bg-cardbg rounded-3xl p-6 border border-slate-800 shadow-2xl space-y-5">
+        <div class="glass-card rounded-3xl p-6 shadow-2xl space-y-5">
             
             <div class="flex bg-slate-900 p-1 rounded-2xl border border-slate-800">
                 <button type="button" onclick="switchAuthTab('register')" id="tab-register-btn"
@@ -134,7 +145,7 @@
 
                 <div>
                     <label class="text-xs font-semibold text-slate-400 block mb-1">Password</label>
-                    <input type="password" id="reg-password" required placeholder="Create a strong password"
+                    <input type="password" id="reg-password" required placeholder="Create a password"
                         class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3.5 text-sm text-white focus:outline-none focus:border-emerald-500">
                 </div>
 
@@ -142,11 +153,11 @@
                     <label class="text-xs font-semibold text-emerald-400 block mb-1">Binance USDT BEP20 Deposit Address</label>
                     <input type="text" id="reg-binance-address" required placeholder="0x..."
                         class="w-full bg-slate-900 border border-emerald-500/50 rounded-xl py-2.5 px-3.5 text-xs font-mono text-white focus:outline-none focus:border-emerald-500">
-                    <p class="text-[10px] text-slate-500 mt-1">Address starts with "0x" (Found on Binance App under BEP20 Deposit)</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Starts with "0x" (Found on Binance App under BEP20 Deposit)</p>
                 </div>
 
-                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm py-3.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all">
-                    Register Account & Continue
+                <button type="submit" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-sm py-3.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all">
+                    Register & Open Dashboard
                 </button>
             </form>
 
@@ -164,7 +175,7 @@
                         class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3.5 text-sm text-white focus:outline-none focus:border-emerald-500">
                 </div>
 
-                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm py-3.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all">
+                <button type="submit" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-sm py-3.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all">
                     Login to Dashboard
                 </button>
             </form>
@@ -172,133 +183,256 @@
         </div>
     </section>
 
-    <!-- SECTION 2: MAIN DASHBOARD CONVERTER PAGE (Visible ONLY when Logged In) -->
-    <main id="main-dashboard-view" class="max-w-xl mx-auto px-4 py-8 hidden">
+    <!-- SECTION 2: MAIN DASHBOARD & LEDGER PAGE (Visible ONLY when Logged In) -->
+    <main id="main-dashboard-view" class="max-w-4xl mx-auto px-4 py-8 hidden">
 
-        <!-- Header Tagline -->
-        <div class="text-center mb-6">
-            <h1 class="font-display font-black text-3xl sm:text-4xl text-white tracking-tight">
-                UPI PayIn ➡️ <span class="text-emerald-400">Binance USDT</span>
-            </h1>
-            <p class="text-xs sm:text-sm text-slate-400 mt-2">
-                Scan QR via GPay, PhonePe, Paytm • Auto-Delivered to Binance BEP20 Wallet
-            </p>
+        <!-- Top Mode Switcher Bar (Buy USDT vs Sell/Withdraw vs History) -->
+        <div class="flex justify-center mb-8">
+            <div class="bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 flex gap-1 shadow-2xl max-w-md w-full">
+                <button type="button" onclick="switchDashboardTab('buy')" id="dash-tab-buy"
+                    class="flex-1 py-3 text-xs font-bold rounded-xl bg-emerald-500 text-slate-950 shadow-lg flex items-center justify-center gap-1.5 transition-all">
+                    <i class="fa-solid fa-arrow-down-left"></i>
+                    <span>Buy USDT (INR)</span>
+                </button>
+                <button type="button" onclick="switchDashboardTab('withdraw')" id="dash-tab-withdraw"
+                    class="flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all">
+                    <i class="fa-solid fa-arrow-up-right"></i>
+                    <span>Withdraw (Sell)</span>
+                </button>
+                <button type="button" onclick="switchDashboardTab('history')" id="dash-tab-history"
+                    class="flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all">
+                    <i class="fa-solid fa-receipt"></i>
+                    <span>My Ledger</span>
+                </button>
+            </div>
         </div>
 
-        <!-- Main Buy Card -->
-        <div class="bg-cardbg rounded-3xl p-6 border border-slate-800 shadow-2xl space-y-6">
-
-            <!-- STEP 1: Buy Form -->
-            <div id="step-1-container" class="space-y-4">
-                
-                <!-- INR Amount Input -->
-                <div>
-                    <div class="flex justify-between text-xs text-slate-400 font-semibold mb-1.5">
-                        <label>1. INR PAYMENT AMOUNT</label>
-                        <span>MIN: ₹200</span>
-                    </div>
-                    <div class="relative">
-                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-slate-400">₹</span>
-                        <input type="number" id="inr-amount" value="500" min="200" max="100000"
-                            class="w-full bg-slate-900 border border-slate-700 rounded-2xl py-3.5 pl-10 pr-16 text-2xl font-extrabold text-white focus:outline-none focus:border-emerald-500 transition-all"
-                            placeholder="500" oninput="calculateUsdt()">
-                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 bg-slate-800 px-2 py-1 rounded">INR</span>
-                    </div>
-
-                    <!-- Quick Chips -->
-                    <div class="flex items-center gap-2 mt-2">
-                        <button onclick="setQuickAmount(500)" class="chip-btn">₹500</button>
-                        <button onclick="setQuickAmount(1000)" class="chip-btn">₹1,000</button>
-                        <button onclick="setQuickAmount(2500)" class="chip-btn">₹2,500</button>
-                        <button onclick="setQuickAmount(5000)" class="chip-btn">₹5,000</button>
-                    </div>
-                </div>
-
-                <!-- You Get USDT Box -->
-                <div class="bg-slate-900/80 rounded-2xl p-4 border border-slate-800 flex items-center justify-between">
-                    <div>
-                        <span class="text-[11px] font-semibold text-slate-400 block">YOU GET IN BINANCE</span>
-                        <span id="usdt-output" class="text-3xl font-black text-emerald-400">5.58</span>
-                        <span class="text-sm font-bold text-slate-400 ml-1">USDT</span>
-                    </div>
-                    <div class="text-right text-xs text-slate-400">
-                        <div class="flex items-center gap-1 text-binance font-bold">
-                            <i class="fa-solid fa-cubes"></i> BEP20 (BNB Chain)
-                        </div>
-                        <span class="text-[10px] text-slate-500">Auto Webhook Delivery</span>
-                    </div>
-                </div>
-
-                <!-- Binance BEP20 Address Box -->
-                <div>
-                    <div class="flex justify-between text-xs text-slate-400 font-semibold mb-1.5">
-                        <label>2. BINANCE USDT DEPOSIT ADDRESS (BEP20)</label>
-                        <span id="address-saved-indicator" class="text-emerald-400 text-[11px] font-semibold">
-                            <i class="fa-solid fa-circle-check"></i> Auto-Filled from Account
-                        </span>
-                    </div>
-                    <div class="relative">
-                        <input type="text" id="binance-address"
-                            class="w-full bg-slate-900 border border-slate-700 rounded-2xl py-3.5 px-4 text-sm font-mono text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 pr-20"
-                            placeholder="0x..." oninput="validateAddress()">
-                        <button type="button" onclick="pasteClipboard()" class="absolute right-2 top-1/2 -translate-y-1/2 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-bold px-3 py-1.5 rounded-xl border border-slate-700">
-                            Paste
-                        </button>
-                    </div>
-                    <p id="address-status" class="text-[11px] text-slate-500 mt-1">Binance App ➡️ Deposit ➡️ USDT ➡️ Choose "BNB Smart Chain (BEP20)"</p>
-                </div>
-
-                <!-- MPXPays PayIn Button -->
-                <button type="button" onclick="initiateMPXPayInOrder()" id="mpx-pay-btn"
-                    class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-display font-black text-lg py-4 px-6 rounded-2xl shadow-lg shadow-emerald-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-credit-card"></i>
-                    <span>PROCEED TO UPI PAYMENT</span>
-                </button>
-
+        <!-- TAB 1: BUY USDT CARD -->
+        <div id="dash-content-buy" class="max-w-xl mx-auto">
+            
+            <div class="text-center mb-6">
+                <h1 class="font-serif font-bold text-3xl text-white tracking-tight">
+                    Instant <span class="text-emerald-400">UPI to USDT</span>
+                </h1>
+                <p class="text-xs text-slate-400 mt-1">
+                    Powered by MPXPays PayIn API • Direct Binance BEP20 Settlement
+                </p>
             </div>
 
-            <!-- STEP 2: MPXPays Order Tracking Section -->
-            <div id="step-2-container" class="space-y-6 hidden border-t border-slate-800 pt-6">
-                
-                <div class="text-center bg-slate-900/90 rounded-2xl p-5 border border-emerald-500/30 space-y-4">
+            <div class="glass-card rounded-3xl p-6 shadow-2xl space-y-6">
+
+                <div id="step-1-container" class="space-y-4">
                     
-                    <div class="flex items-center justify-center gap-2 text-xs text-slate-400">
-                        <i class="fa-solid fa-spinner animate-spin text-emerald-400"></i>
-                        <span>Order Reference: <strong id="mpx-order-ref" class="font-mono text-white">#KP-...</strong></span>
+                    <!-- INR Amount Input -->
+                    <div>
+                        <div class="flex justify-between text-xs text-slate-400 font-semibold mb-1.5">
+                            <label>1. INR PAYMENT AMOUNT</label>
+                            <span>MIN: ₹200</span>
+                        </div>
+                        <div class="relative">
+                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-slate-400">₹</span>
+                            <input type="number" id="inr-amount" value="500" min="200" max="100000"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-2xl py-3.5 pl-10 pr-16 text-2xl font-extrabold text-white focus:outline-none focus:border-emerald-500 transition-all"
+                                placeholder="500" oninput="calculateUsdt()">
+                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 bg-slate-800 px-2 py-1 rounded">INR</span>
+                        </div>
+
+                        <!-- Quick Chips -->
+                        <div class="flex items-center gap-2 mt-2">
+                            <button onclick="setQuickAmount(500)" class="chip-btn">₹500</button>
+                            <button onclick="setQuickAmount(1000)" class="chip-btn">₹1,000</button>
+                            <button onclick="setQuickAmount(2500)" class="chip-btn">₹2,500</button>
+                            <button onclick="setQuickAmount(5000)" class="chip-btn">₹5,000</button>
+                        </div>
                     </div>
 
-                    <h3 id="pay-amount-heading" class="text-3xl font-black text-white">₹500.00 INR</h3>
+                    <!-- You Get USDT Box -->
+                    <div class="bg-slate-900/80 rounded-2xl p-4 border border-slate-800 flex items-center justify-between">
+                        <div>
+                            <span class="text-[11px] font-semibold text-slate-400 block">YOU GET IN BINANCE</span>
+                            <span id="usdt-output" class="text-3xl font-black text-emerald-400">5.58</span>
+                            <span class="text-sm font-bold text-slate-400 ml-1">USDT</span>
+                        </div>
+                        <div class="text-right text-xs text-slate-400">
+                            <div class="flex items-center gap-1 text-binance font-bold">
+                                <i class="fa-solid fa-cubes"></i> BEP20 (BNB Chain)
+                            </div>
+                            <span class="text-[10px] text-slate-500">Auto Webhook Delivery</span>
+                        </div>
+                    </div>
 
-                    <p class="text-xs text-slate-300">
-                        Click below to complete UPI payment on secure MPXPays gateway:
-                    </p>
-
-                    <!-- Open MPXPays Checkout URL Button -->
-                    <button type="button" id="open-checkout-btn"
-                        class="w-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-slate-950 font-black py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                        <span>COMPLETE PAYMENT ON UPI GATEWAY</span>
-                    </button>
-
-                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-left text-xs space-y-2">
-                        <div class="flex justify-between text-slate-400">
-                            <span>Status:</span>
-                            <span class="text-amber-400 font-bold flex items-center gap-1">
-                                <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span> Awaiting Payment
+                    <!-- Binance BEP20 Address Box -->
+                    <div>
+                        <div class="flex justify-between text-xs text-slate-400 font-semibold mb-1.5">
+                            <label>2. BINANCE USDT DEPOSIT ADDRESS (BEP20)</label>
+                            <span id="address-saved-indicator" class="text-emerald-400 text-[11px] font-semibold">
+                                <i class="fa-solid fa-circle-check"></i> Connected
                             </span>
                         </div>
-                        <div class="flex justify-between text-slate-400">
-                            <span>Auto Verification:</span>
-                            <span class="text-emerald-400 font-mono text-[11px]">Active (Polling)</span>
+                        <div class="relative">
+                            <input type="text" id="binance-address"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-2xl py-3.5 px-4 text-sm font-mono text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 pr-20"
+                                placeholder="0x..." oninput="validateAddress()">
+                            <button type="button" onclick="pasteClipboard()" class="absolute right-2 top-1/2 -translate-y-1/2 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-bold px-3 py-1.5 rounded-xl border border-slate-700">
+                                Paste
+                            </button>
                         </div>
+                        <p id="address-status" class="text-[11px] text-slate-500 mt-1">Binance App ➡️ Deposit ➡️ USDT ➡️ Choose "BNB Smart Chain (BEP20)"</p>
                     </div>
+
+                    <!-- MPXPays PayIn Button -->
+                    <button type="button" onclick="initiateMPXPayInOrder()" id="mpx-pay-btn"
+                        class="w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400 hover:opacity-95 text-slate-950 font-display font-black text-lg py-4 px-6 rounded-2xl shadow-xl shadow-emerald-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-credit-card"></i>
+                        <span>PROCEED TO UPI PAYMENT</span>
+                    </button>
 
                 </div>
 
-                <button type="button" onclick="resetForm()" class="w-full text-xs text-slate-500 hover:text-slate-300 py-1">
-                    ← Change Amount or Address
-                </button>
+                <!-- STEP 2: MPXPays Order Tracking Section -->
+                <div id="step-2-container" class="space-y-6 hidden border-t border-slate-800 pt-6">
+                    <div class="text-center bg-slate-900/90 rounded-2xl p-5 border border-emerald-500/30 space-y-4">
+                        <div class="flex items-center justify-center gap-2 text-xs text-slate-400">
+                            <i class="fa-solid fa-spinner animate-spin text-emerald-400"></i>
+                            <span>Order Reference: <strong id="mpx-order-ref" class="font-mono text-white">#KP-...</strong></span>
+                        </div>
+                        <h3 id="pay-amount-heading" class="text-3xl font-black text-white">₹500.00 INR</h3>
+                        <p class="text-xs text-slate-300">
+                            Click below to complete UPI payment on MPXPays Gateway:
+                        </p>
+                        <button type="button" id="open-checkout-btn"
+                            class="w-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-slate-950 font-black py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            <span>COMPLETE PAYMENT ON UPI GATEWAY</span>
+                        </button>
+                    </div>
+                    <button type="button" onclick="resetForm()" class="w-full text-xs text-slate-500 hover:text-slate-300 py-1">
+                        ← Change Amount or Address
+                    </button>
+                </div>
 
+            </div>
+        </div>
+
+        <!-- TAB 2: WITHDRAW / SELL USDT CARD -->
+        <div id="dash-content-withdraw" class="max-w-xl mx-auto hidden">
+            
+            <div class="text-center mb-6">
+                <h1 class="font-serif font-bold text-3xl text-white tracking-tight">
+                    Withdraw <span class="text-amber-400">USDT to Bank</span>
+                </h1>
+                <p class="text-xs text-slate-400 mt-1">
+                    Sell USDT & Get Instant INR Settlement to your Bank / UPI
+                </p>
+            </div>
+
+            <div class="glass-card rounded-3xl p-6 shadow-2xl space-y-5 border-amber-500/30">
+                <form onsubmit="handleWithdrawalSubmit(event)" class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-xs text-slate-400 font-semibold mb-1.5">
+                            <label>1. USDT WITHDRAWAL AMOUNT</label>
+                            <span>MIN: 10 USDT</span>
+                        </div>
+                        <div class="relative">
+                            <input type="number" id="withdraw-usdt-amount" value="50" min="10" max="5000" step="1"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-2xl py-3.5 pl-4 pr-20 text-2xl font-extrabold text-amber-400 focus:outline-none focus:border-amber-500"
+                                placeholder="50" oninput="calculateWithdrawInr()">
+                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/30">USDT</span>
+                        </div>
+                    </div>
+
+                    <!-- INR Payout Output -->
+                    <div class="bg-slate-900/80 rounded-2xl p-4 border border-slate-800 flex items-center justify-between">
+                        <div>
+                            <span class="text-[11px] font-semibold text-slate-400 block">YOU RECEIVE IN BANK</span>
+                            <span id="withdraw-inr-output" class="text-3xl font-black text-white">₹4,350.00</span>
+                            <span class="text-xs text-slate-400 ml-1">INR</span>
+                        </div>
+                        <div class="text-right text-xs text-slate-400">
+                            <span class="text-[10px] text-slate-500 block">Payout Rate</span>
+                            <strong class="text-amber-400">1 USDT = ₹87.00</strong>
+                        </div>
+                    </div>
+
+                    <!-- Bank Details -->
+                    <div class="space-y-3 pt-2">
+                        <div>
+                            <label class="text-xs font-semibold text-slate-400 block mb-1">Bank Name</label>
+                            <input type="text" id="payout-bank-name" required placeholder="e.g. HDFC Bank / ICICI Bank"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-semibold text-slate-400 block mb-1">Account Holder Name</label>
+                            <input type="text" id="payout-holder-name" required placeholder="Name on Bank Account"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-xs font-semibold text-slate-400 block mb-1">Account Number</label>
+                                <input type="text" id="payout-account-no" required placeholder="50100..."
+                                    class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3.5 text-xs font-mono text-white focus:outline-none focus:border-amber-500">
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-semibold text-slate-400 block mb-1">IFSC Code</label>
+                                <input type="text" id="payout-ifsc" required placeholder="HDFC0001234"
+                                    class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3.5 text-xs font-mono text-white focus:outline-none focus:border-amber-500 uppercase">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="payout-btn"
+                        class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-display font-black text-base py-3.5 px-6 rounded-2xl shadow-xl shadow-amber-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>SUBMIT WITHDRAWAL REQUEST</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- TAB 3: PERSONAL TRANSACTION HISTORY LEDGER -->
+        <div id="dash-content-history" class="hidden">
+            
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h1 class="font-serif font-bold text-2xl text-white tracking-tight">
+                        Personal <span class="text-emerald-400">Transaction Ledger</span>
+                    </h1>
+                    <p class="text-xs text-slate-400 mt-0.5">
+                        Private transaction record for <span id="ledger-user-email" class="text-emerald-400 font-mono">user@example.com</span>
+                    </p>
+                </div>
+
+                <button onclick="loadUserTransactionLedger()" class="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                    <i class="fa-solid fa-rotate-right"></i> Refresh
+                </button>
+            </div>
+
+            <div class="glass-card rounded-3xl overflow-hidden border border-slate-800 shadow-2xl">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-900/90 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                            <tr>
+                                <th class="py-3.5 px-4">Order Ref</th>
+                                <th class="py-3.5 px-4">Type</th>
+                                <th class="py-3.5 px-4">INR Amount</th>
+                                <th class="py-3.5 px-4">USDT</th>
+                                <th class="py-3.5 px-4">Bank UTR</th>
+                                <th class="py-3.5 px-4">Status</th>
+                                <th class="py-3.5 px-4">BSC TxHash</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transaction-ledger-rows" class="divide-y divide-slate-800/60 font-mono text-slate-300">
+                            <tr>
+                                <td colspan="7" class="py-8 text-center text-slate-500 font-sans">
+                                    <i class="fa-solid fa-spinner animate-spin text-emerald-400 mr-2"></i> Loading your private transaction history...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
         </div>

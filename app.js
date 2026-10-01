@@ -1,11 +1,13 @@
-// Launch Application State
+// Executive Wealth Application State
 let usdtRate = 89.50;
+let usdtPayoutRate = 87.00;
 let currentUser = null;
 let currentPollInterval = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     fetchLiveRate();
     calculateUsdt();
+    calculateWithdrawInr();
     checkSavedSession();
     initGoogleAuth();
 });
@@ -46,7 +48,6 @@ function applyUserSession() {
     
     document.getElementById('user-name-display').innerText = currentUser.name || 'User Account';
     
-    // User Profile Picture vs Initial Letter
     const avatarImg = document.getElementById('user-avatar-img');
     const avatarText = document.getElementById('user-avatar-text');
 
@@ -66,6 +67,9 @@ function applyUserSession() {
         document.getElementById('address-saved-indicator').classList.remove('hidden');
         validateAddress();
     }
+
+    // Load User's Private Transaction History
+    loadUserTransactionLedger();
 }
 
 function switchAuthTab(tab) {
@@ -87,10 +91,42 @@ function switchAuthTab(tab) {
     }
 }
 
+// Switch Dashboard View Tabs (Buy vs Withdraw vs History)
+function switchDashboardTab(tabName) {
+    const buyBtn = document.getElementById('dash-tab-buy');
+    const withdrawBtn = document.getElementById('dash-tab-withdraw');
+    const historyBtn = document.getElementById('dash-tab-history');
+
+    const buyContent = document.getElementById('dash-content-buy');
+    const withdrawContent = document.getElementById('dash-content-withdraw');
+    const historyContent = document.getElementById('dash-content-history');
+
+    // Reset buttons
+    buyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
+    withdrawBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
+    historyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
+
+    // Hide contents
+    buyContent.classList.add('hidden');
+    withdrawContent.classList.add('hidden');
+    historyContent.classList.add('hidden');
+
+    if (tabName === 'buy') {
+        buyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-emerald-500 text-slate-950 shadow-lg flex items-center justify-center gap-1.5 transition-all";
+        buyContent.classList.remove('hidden');
+    } else if (tabName === 'withdraw') {
+        withdrawBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-amber-500 text-slate-950 shadow-lg flex items-center justify-center gap-1.5 transition-all";
+        withdrawContent.classList.remove('hidden');
+    } else if (tabName === 'history') {
+        historyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-slate-800 text-emerald-400 border border-slate-700 shadow-lg flex items-center justify-center gap-1.5 transition-all";
+        historyContent.classList.remove('hidden');
+        loadUserTransactionLedger();
+    }
+}
+
 /* ================= GOOGLE IDENTITY OAUTH INTEGRATION ================= */
 
 function initGoogleAuth() {
-    // Check if real Google Client ID is configured
     if (window.GOOGLE_CLIENT_ID && window.google && window.google.accounts) {
         window.google.accounts.id.initialize({
             client_id: window.GOOGLE_CLIENT_ID,
@@ -99,7 +135,6 @@ function initGoogleAuth() {
     }
 }
 
-// Decode Google JWT Credential Response
 function parseJwt(token) {
     try {
         const base64Url = token.split('.')[1];
@@ -113,7 +148,6 @@ function parseJwt(token) {
     }
 }
 
-// Handle Google OAuth Login Callback
 function handleGoogleCredentialResponse(response) {
     if (response && response.credential) {
         const payload = parseJwt(response.credential);
@@ -130,14 +164,12 @@ function handleGoogleCredentialResponse(response) {
     }
 }
 
-// Google OAuth Sign-In Handler
 function promptGoogleSignIn() {
     if (window.GOOGLE_CLIENT_ID && window.google && window.google.accounts && window.google.accounts.id) {
         window.google.accounts.id.prompt();
         return;
     }
 
-    // Google Account Picker Dialog
     const userEmail = prompt('Sign in with Google - Enter your Gmail address:', 'anibunny2387@gmail.com');
     if (userEmail) {
         const userName = userEmail.split('@')[0];
@@ -218,8 +250,10 @@ async function fetchLiveRate() {
             const data = await res.json();
             if (data && data.tether && data.tether.inr) {
                 usdtRate = (data.tether.inr * 1.008).toFixed(2);
+                usdtPayoutRate = (data.tether.inr * 0.98).toFixed(2);
                 document.getElementById('header-usdt-rate').innerText = `1 USDT = ₹${usdtRate}`;
                 calculateUsdt();
+                calculateWithdrawInr();
             }
         }
     } catch (e) {
@@ -235,6 +269,17 @@ function calculateUsdt() {
         return;
     }
     outputElem.innerText = (inrVal / usdtRate).toFixed(2);
+}
+
+function calculateWithdrawInr() {
+    const usdtVal = parseFloat(document.getElementById('withdraw-usdt-amount').value);
+    const outputElem = document.getElementById('withdraw-inr-output');
+    if (isNaN(usdtVal) || usdtVal <= 0) {
+        outputElem.innerText = '₹0.00';
+        return;
+    }
+    const inrVal = (usdtVal * usdtPayoutRate).toFixed(2);
+    outputElem.innerText = `₹${parseFloat(inrVal).toLocaleString('en-IN')}`;
 }
 
 function setQuickAmount(amt) {
@@ -282,7 +327,7 @@ async function pasteClipboard() {
 }
 
 // ------------------------------------------------------------------
-// MPXPAYS PAYIN ORDER INTEGRATION
+// MPXPAYS PAYIN ORDER INTEGRATION (BUY USDT)
 // ------------------------------------------------------------------
 async function initiateMPXPayInOrder() {
     const inrVal = parseFloat(document.getElementById('inr-amount').value);
@@ -301,7 +346,7 @@ async function initiateMPXPayInOrder() {
     const payBtn = document.getElementById('mpx-pay-btn');
     const originalText = payBtn.innerHTML;
     payBtn.disabled = true;
-    payBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Generating MPXPays Signature...`;
+    payBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Generating PayIn Signature...`;
 
     try {
         const response = await fetch('/api/create-payin-order', {
@@ -328,19 +373,132 @@ async function initiateMPXPayInOrder() {
             document.getElementById('step-2-container').classList.remove('hidden');
             document.getElementById('step-2-container').scrollIntoView({ behavior: 'smooth' });
 
-            // Automatically open MPXPays checkout window
             window.open(data.payment_url, '_blank', 'width=500,height=750');
-
-            // Start polling for Webhook Callback status
             startOrderPolling(data.merchant_order_no);
         } else {
-            alert('MPXPays Error: ' + (data.message || 'Failed to initiate order'));
+            alert('PayIn Error: ' + (data.message || 'Failed to initiate order'));
         }
     } catch (err) {
         payBtn.disabled = false;
         payBtn.innerHTML = originalText;
-        console.error('Error initiating MPXPays PayIn Order:', err);
+        console.error('Error initiating PayIn Order:', err);
         alert('Server Connection Error.');
+    }
+}
+
+// ------------------------------------------------------------------
+// WITHDRAWAL / PAYOUT HANDLER (SELL USDT FOR BANK INR)
+// ------------------------------------------------------------------
+async function handleWithdrawalSubmit(e) {
+    e.preventDefault();
+
+    const usdtAmount = document.getElementById('withdraw-usdt-amount').value;
+    const bankName = document.getElementById('payout-bank-name').value.trim();
+    const accountHolderName = document.getElementById('payout-holder-name').value.trim();
+    const accountNumber = document.getElementById('payout-account-no').value.trim();
+    const ifscCode = document.getElementById('payout-ifsc').value.trim();
+
+    if (!usdtAmount || !accountNumber || !ifscCode || !accountHolderName) {
+        alert('Please fill in all bank account details for withdrawal.');
+        return;
+    }
+
+    const payoutBtn = document.getElementById('payout-btn');
+    const origText = payoutBtn.innerHTML;
+    payoutBtn.disabled = true;
+    payoutBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Submitting Payout...`;
+
+    try {
+        const res = await fetch('/api/create-payout-order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                usdtAmount: usdtAmount,
+                userEmail: currentUser ? currentUser.email : 'user@kryptpay.com',
+                bankName: bankName,
+                accountHolderName: accountHolderName,
+                accountNumber: accountNumber,
+                ifscCode: ifscCode
+            })
+        });
+
+        const data = await res.json();
+        payoutBtn.disabled = false;
+        payoutBtn.innerHTML = origText;
+
+        if (data.status === 1) {
+            alert(`✅ Withdrawal Request Submitted!\nOrder ID: ${data.merchant_order_no}\nNet Payout: ₹${data.inrAmount} INR\nSettlement Status: Processing`);
+            switchDashboardTab('history');
+        } else {
+            alert('Payout Error: ' + data.message);
+        }
+    } catch (err) {
+        payoutBtn.disabled = false;
+        payoutBtn.innerHTML = origText;
+        alert('Connection error during payout submission.');
+    }
+}
+
+// ------------------------------------------------------------------
+// LOAD USER'S PRIVATE TRANSACTION HISTORY LEDGER
+// ------------------------------------------------------------------
+async function loadUserTransactionLedger() {
+    if (!currentUser || !currentUser.email) return;
+
+    const emailElem = document.getElementById('ledger-user-email');
+    if (emailElem) emailElem.innerText = currentUser.email;
+
+    const tbody = document.getElementById('transaction-ledger-rows');
+    if (!tbody) return;
+
+    try {
+        const res = await fetch(`/api/user-transactions/${encodeURIComponent(currentUser.email)}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.status === 1 && data.transactions && data.transactions.length > 0) {
+                
+                tbody.innerHTML = data.transactions.map(tx => {
+                    const isBuy = tx.type !== 'WITHDRAW';
+                    const badgeClass = tx.status === 'COMPLETED' || tx.status === 'PAID'
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                        : 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+                    
+                    const typeBadge = isBuy
+                        ? '<span class="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">BUY</span>'
+                        : '<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">WITHDRAW</span>';
+
+                    return `
+                        <tr class="hover:bg-slate-900/60 transition-colors">
+                            <td class="py-3 px-4 font-mono font-semibold text-white">${tx.merchant_order_no}</td>
+                            <td class="py-3 px-4">${typeBadge}</td>
+                            <td class="py-3 px-4 font-bold text-white">₹${parseFloat(tx.amount).toLocaleString('en-IN')}</td>
+                            <td class="py-3 px-4 font-bold text-emerald-400">${tx.usdtAmount} USDT</td>
+                            <td class="py-3 px-4 text-slate-300 font-mono text-[11px]">${tx.utr || 'Pending'}</td>
+                            <td class="py-3 px-4">
+                                <span class="px-2 py-0.5 rounded text-[10px] border font-bold ${badgeClass}">
+                                    ${tx.status}
+                                </span>
+                            </td>
+                            <td class="py-3 px-4 font-mono text-[11px] text-cyan-400">
+                                ${tx.txHash ? tx.txHash.substring(0, 10) + '...' : '-'}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="py-8 text-center text-slate-500 font-sans">
+                            <i class="fa-solid fa-receipt text-slate-600 text-2xl block mb-2"></i>
+                            No transaction history found for <span class="text-slate-400 font-mono">${currentUser.email}</span>.
+                            Make a Buy or Withdraw request to see your ledger logs.
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+    } catch (err) {
+        console.error('Error fetching user ledger:', err);
     }
 }
 
@@ -353,7 +511,7 @@ function startOrderPolling(orderNo) {
             const res = await fetch(`/api/check-order-status/${orderNo}`);
             if (res.ok) {
                 const data = await res.json();
-                if (data.status === 1 && data.orderStatus === 'PAID') {
+                if (data.status === 1 && (data.orderStatus === 'PAID' || data.orderStatus === 'COMPLETED')) {
                     clearInterval(currentPollInterval);
                     
                     document.getElementById('modal-inr').innerText = `₹${data.amount} INR`;
@@ -363,6 +521,7 @@ function startOrderPolling(orderNo) {
                     document.getElementById('modal-txhash').innerText = data.txHash || '0x9b3f...e82c';
 
                     document.getElementById('success-modal').classList.remove('hidden');
+                    loadUserTransactionLedger();
                 }
             }
         } catch (e) {
@@ -374,6 +533,7 @@ function startOrderPolling(orderNo) {
 function closeSuccessModal() {
     document.getElementById('success-modal').classList.add('hidden');
     resetForm();
+    switchDashboardTab('history');
 }
 
 function resetForm() {

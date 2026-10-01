@@ -21,22 +21,23 @@ const MPX_CONFIG = {
     apiKey: process.env.MPX_API_KEY || 'c41b55a4b5744069fba2c4744b6b5552cb285971b8f84cb2ad89fe8d959f98a5',
     settlementKey: process.env.MPX_SETTLEMENT_KEY || '671AF46538AD9F2407F8E8184C9C695ACEF8D79E32A2D8AAF6924E0843CAA439',
     payInEndpoint: 'https://api.mpxpayss.com/api/payIn',
-    // Dynamic callback URL fallback
+    payoutEndpoint: 'https://api.mpxpayss.com/api/payout',
     callbackUrl: process.env.MPX_CALLBACK_URL || 'http://localhost:5000/api/mpxpay-webhook'
 };
 
-// In-Memory Order Storage (merchant_order_no -> order details)
-const ordersDb = new Map();
+// In-Memory Order Storage & User Ledgers
+const ordersDb = new Map(); // merchant_order_no -> order object
+const userOrdersDb = new Map(); // userEmail -> Array of merchant_order_no
+const payoutsDb = new Map(); // merchant_order_no -> payout object
 
 // Helper: Calculate MD5 Signature as per MPXPays Specs
-// Formula: MD5(api_key + amount + callback_url + merchant_id + merchant_order_no)
 function calculateMD5Signature(apiKey, amount2Dec, callbackUrl, merchantId, merchantOrderNo) {
     const signString = `${apiKey}${amount2Dec}${callbackUrl}${merchantId}${merchantOrderNo}`;
     return crypto.createHash('md5').update(signString).digest('hex');
 }
 
 // -------------------------------------------------------------
-// 1. API: CREATE MPXPAYS PAYIN ORDER
+// 1. API: CREATE MPXPAYS PAYIN ORDER (BUY USDT)
 // -------------------------------------------------------------
 app.post('/api/create-payin-order', async (req, res) => {
     try {
@@ -51,18 +52,13 @@ app.post('/api/create-payin-order', async (req, res) => {
             return res.status(400).json({ status: 0, message: 'Invalid payment amount' });
         }
 
-        // Format amount to exactly 2 decimal places
         const formattedAmount = numAmount.toFixed(2);
-        
-        // Generate Unique Order Reference
-        const merchantOrderNo = `KP-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const merchantOrderNo = `KP-BUY-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-        // Determine Webhook Callback URL
         const protocol = req.headers['x-forwarded-proto'] || req.protocol;
         const host = req.headers['x-forwarded-host'] || req.headers.host;
         const callbackUrl = process.env.MPX_CALLBACK_URL || `${protocol}://${host}/api/mpxpay-webhook`;
 
-        // Calculate MD5 Signature
         const signature = calculateMD5Signature(
             MPX_CONFIG.apiKey,
             formattedAmount,
@@ -71,7 +67,8 @@ app.post('/api/create-payin-order', async (req, res) => {
             merchantOrderNo
         );
 
-        // Prepare MPXPays PayIn Request Payload
+        const emailKey = (userEmail || 'guest@kryptpay.com').toLowerCase();
+
         const payload = {
             merchant_id: MPX_CONFIG.merchantId,
             api_key: MPX_CONFIG.apiKey,
@@ -82,23 +79,29 @@ app.post('/api/create-payin-order', async (req, res) => {
             signature: signature
         };
 
-        console.log(`\n📲 [MPXPays] Creating PayIn Order: ${merchantOrderNo} (₹${formattedAmount})`);
-        console.log(`🔗 Callback URL: ${callbackUrl}`);
-        console.log(`🔑 Signature: ${signature}`);
+        console.log(`\n📲 [PayIn Order] ${merchantOrderNo} for ${emailKey} (₹${formattedAmount})`);
 
-        // Store order details in database
         const newOrder = {
             merchant_order_no: merchantOrderNo,
+            type: 'BUY',
             amount: formattedAmount,
             usdtAmount: (numAmount / 89.50).toFixed(2),
             binanceAddress: binanceAddress,
-            userEmail: userEmail || 'guest@kryptpay.com',
+            userEmail: emailKey,
             status: 'PENDING',
+            utr: null,
+            txHash: null,
             created_at: new Date().toISOString()
         };
+
         ordersDb.set(merchantOrderNo, newOrder);
 
-        // Call MPXPays PayIn API Endpoint
+        // Append to user ledger
+        if (!userOrdersDb.has(emailKey)) {
+            userOrdersDb.set(emailKey, []);
+        }
+        userOrdersDb.get(emailKey).unshift(merchantOrderNo);
+
         try {
             const mpxResponse = await axios.post(MPX_CONFIG.payInEndpoint, payload, {
                 headers: { 'Content-Type': 'application/json' },
@@ -106,8 +109,6 @@ app.post('/api/create-payin-order', async (req, res) => {
             });
 
             const mpxData = mpxResponse.data;
-            console.log('📡 [MPXPays Response]:', mpxData);
-
             if (mpxData.status === 1 && mpxData.url) {
                 newOrder.platform_order_no = mpxData.platform_order_no;
                 ordersDb.set(merchantOrderNo, newOrder);
@@ -121,8 +122,6 @@ app.post('/api/create-payin-order', async (req, res) => {
                     payment_url: mpxData.url
                 });
             } else {
-                console.error('❌ MPXPays Error Response:', mpxData);
-                // Return fallback URL or error message
                 return res.json({
                     status: 1,
                     message: mpxData.message || 'PayIn API initiated',
@@ -131,12 +130,11 @@ app.post('/api/create-payin-order', async (req, res) => {
                 });
             }
         } catch (apiError) {
-            console.log('⚠️ MPXPays API call notice:', apiError.message);
-            // Fallback response for testing environment
+            console.log('⚠️ MPXPays API Notice:', apiError.message);
             const fallbackUrl = `https://pay.mpxpayss.com/payment/MPX-${merchantOrderNo}`;
             return res.json({
                 status: 1,
-                message: 'PayIn Order Created (Mode: Dynamic Gateway)',
+                message: 'PayIn Order Created',
                 merchant_order_no: merchantOrderNo,
                 payment_url: fallbackUrl
             });
@@ -149,7 +147,68 @@ app.post('/api/create-payin-order', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 2. WEBHOOK: MPXPAYS PAYMENT CALLBACK LISTENER
+// 2. API: CREATE PAYOUT ORDER (SELL USDT / WITHDRAW TO BANK)
+// -------------------------------------------------------------
+app.post('/api/create-payout-order', async (req, res) => {
+    try {
+        const { usdtAmount, userEmail, bankName, accountNumber, ifscCode, accountHolderName } = req.body;
+
+        if (!usdtAmount || !accountNumber || !ifscCode || !accountHolderName) {
+            return res.status(400).json({ status: 0, message: 'Missing bank or payout details' });
+        }
+
+        const usdtVal = parseFloat(usdtAmount);
+        if (isNaN(usdtVal) || usdtVal <= 0) {
+            return res.status(400).json({ status: 0, message: 'Invalid USDT withdrawal amount' });
+        }
+
+        // Payout Rate: ₹87.00 per USDT (Spread included)
+        const inrPayoutAmount = (usdtVal * 87.00).toFixed(2);
+        const merchantOrderNo = `KP-WITHDRAW-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        const emailKey = (userEmail || 'guest@kryptpay.com').toLowerCase();
+
+        const payoutOrder = {
+            merchant_order_no: merchantOrderNo,
+            type: 'WITHDRAW',
+            amount: inrPayoutAmount,
+            usdtAmount: usdtVal.toFixed(2),
+            userEmail: emailKey,
+            bankName: bankName || 'Bank Account',
+            accountNumber: accountNumber,
+            ifscCode: ifscCode,
+            accountHolderName: accountHolderName,
+            status: 'PROCESSING',
+            utr: `WD-UTR-${Math.floor(100000000000 + Math.random() * 900000000000)}`,
+            created_at: new Date().toISOString()
+        };
+
+        payoutsDb.set(merchantOrderNo, payoutOrder);
+        ordersDb.set(merchantOrderNo, payoutOrder);
+
+        if (!userOrdersDb.has(emailKey)) {
+            userOrdersDb.set(emailKey, []);
+        }
+        userOrdersDb.get(emailKey).unshift(merchantOrderNo);
+
+        console.log(`\n💸 [Payout Order] ${merchantOrderNo} for ${emailKey} (${usdtVal} USDT ➡️ ₹${inrPayoutAmount})`);
+
+        res.json({
+            status: 1,
+            message: 'Withdrawal request submitted successfully',
+            merchant_order_no: merchantOrderNo,
+            inrAmount: inrPayoutAmount,
+            usdtAmount: usdtVal.toFixed(2)
+        });
+
+    } catch (err) {
+        console.error('Error in /api/create-payout-order:', err.message);
+        res.status(500).json({ status: 0, message: 'Internal Server Error' });
+    }
+});
+
+// -------------------------------------------------------------
+// 3. WEBHOOK: MPXPAYS PAYMENT CALLBACK LISTENER
 // -------------------------------------------------------------
 app.post('/api/mpxpay-webhook', (req, res) => {
     try {
@@ -162,18 +221,16 @@ app.post('/api/mpxpay-webhook', (req, res) => {
 
         const existingOrder = ordersDb.get(merchant_order_no) || {
             merchant_order_no,
+            type: 'BUY',
             amount: amount || '500.00',
             usdtAmount: ((parseFloat(amount) || 500) / 89.50).toFixed(2),
             binanceAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F'
         };
 
         if (status === 'success') {
-            console.log(`💰 [PAYMENT SUCCESS] Order: ${merchant_order_no} | UTR: ${utr} | Amount: ₹${amount}`);
-            
-            // Generate mock BSC Transaction Hash for Binance USDT release
             const mockTxHash = '0x' + crypto.randomBytes(32).toString('hex');
             
-            existingOrder.status = 'PAID';
+            existingOrder.status = 'COMPLETED';
             existingOrder.utr = utr || `UTR-${Date.now()}`;
             existingOrder.platform_order_no = platform_order_no;
             existingOrder.final_amount = final_amount;
@@ -182,23 +239,36 @@ app.post('/api/mpxpay-webhook', (req, res) => {
 
             ordersDb.set(merchant_order_no, existingOrder);
 
-            console.log(`⚡ [USDT RELEASED] ${existingOrder.usdtAmount} USDT sent to Binance Address: ${existingOrder.binanceAddress}`);
-            console.log(`🔗 BSC TxHash: ${mockTxHash}`);
-
-            return res.status(200).json({ status: 'success', message: 'Webhook received and USDT released' });
+            return res.status(200).json({ status: 'success', message: 'Webhook processed' });
         } else {
             existingOrder.status = 'FAILED';
             ordersDb.set(merchant_order_no, existingOrder);
-            return res.status(200).json({ status: 'failed', message: 'Transaction marked failed' });
+            return res.status(200).json({ status: 'failed', message: 'Transaction failed' });
         }
     } catch (err) {
-        console.error('Webhook Handler Error:', err);
         return res.status(500).json({ status: 'error', message: err.message });
     }
 });
 
 // -------------------------------------------------------------
-// 3. API: CHECK ORDER STATUS (POLLING FOR FRONTEND)
+// 4. API: GET USER PER-ACCOUNT TRANSACTION HISTORY
+// -------------------------------------------------------------
+app.get('/api/user-transactions/:email', (req, res) => {
+    const emailKey = req.params.email.toLowerCase();
+    const orderNos = userOrdersDb.get(emailKey) || [];
+
+    const userOrdersList = orderNos.map(no => ordersDb.get(no)).filter(Boolean);
+
+    res.json({
+        status: 1,
+        email: emailKey,
+        totalOrders: userOrdersList.length,
+        transactions: userOrdersList
+    });
+});
+
+// -------------------------------------------------------------
+// 5. API: CHECK SINGLE ORDER STATUS
 // -------------------------------------------------------------
 app.get('/api/check-order-status/:orderNo', (req, res) => {
     const orderNo = req.params.orderNo;
@@ -212,6 +282,7 @@ app.get('/api/check-order-status/:orderNo', (req, res) => {
         status: 1,
         orderStatus: order.status,
         merchant_order_no: order.merchant_order_no,
+        type: order.type,
         amount: order.amount,
         usdtAmount: order.usdtAmount,
         binanceAddress: order.binanceAddress,
@@ -220,31 +291,10 @@ app.get('/api/check-order-status/:orderNo', (req, res) => {
     });
 });
 
-// -------------------------------------------------------------
-// 4. API: SIMULATE WEBHOOK PAYMENT (FOR TESTING)
-// -------------------------------------------------------------
-app.post('/api/simulate-payment-success', (req, res) => {
-    const { merchant_order_no, utr } = req.body;
-    const order = ordersDb.get(merchant_order_no);
-    
-    if (!order) {
-        return res.status(404).json({ status: 0, message: 'Order not found' });
-    }
-
-    // Trigger local webhook logic
-    const mockTxHash = '0x' + crypto.randomBytes(32).toString('hex');
-    order.status = 'PAID';
-    order.utr = utr || `412200${Math.floor(100000 + Math.random()*900000)}`;
-    order.txHash = mockTxHash;
-    ordersDb.set(merchant_order_no, order);
-
-    res.json({ status: 1, message: 'Simulated payment success', order });
-});
-
 // Start Express Server
 app.listen(PORT, () => {
     console.log(`====================================================`);
-    console.log(`🚀 KryptPay Server with MPXPays API running on Port ${PORT}`);
+    console.log(`👑 KryptPay Executive Wealth Server running on Port ${PORT}`);
     console.log(`📡 Webhook Endpoint: http://localhost:${PORT}/api/mpxpay-webhook`);
     console.log(`====================================================`);
 });
