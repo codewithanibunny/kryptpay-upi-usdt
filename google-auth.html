@@ -27,44 +27,24 @@
         <h1 class="text-2xl font-normal text-white tracking-tight mb-1">Choose an account</h1>
         <p class="text-sm text-slate-400 mb-6">to continue to <strong class="text-emerald-400">KryptPay Executive Gateway</strong></p>
 
-        <!-- Google Accounts Selection List -->
-        <div class="space-y-1 border-t border-b border-slate-700/80 py-2">
-            
-            <!-- Default Google Account Item -->
-            <div onclick="selectAccount('anibunny2387@gmail.com', 'Anibunny')" 
-                class="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-800 cursor-pointer transition-colors border border-transparent hover:border-slate-700">
-                <div class="w-10 h-10 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-base shadow">
-                    A
-                </div>
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-white truncate">Anibunny</p>
-                    <p class="text-xs text-slate-400 truncate">anibunny2387@gmail.com</p>
-                </div>
-                <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <!-- Dynamic Custom Email Account Entry Form -->
+        <form id="custom-account-form" onsubmit="submitCustomAccount(event)" class="space-y-4 bg-slate-900/90 p-4 rounded-2xl border border-slate-700/80 shadow-lg">
+            <div>
+                <label class="text-xs font-medium text-slate-300 block mb-1.5">Google / Gmail Address</label>
+                <input type="email" id="custom-email" required placeholder="name@gmail.com"
+                    class="w-full bg-slate-800 border border-slate-600 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-blue-500 font-sans">
             </div>
 
-            <!-- Custom Account / Switch Input Toggle -->
-            <div id="use-another-account-btn" onclick="showOtherInput()" 
-                class="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-800 cursor-pointer transition-colors text-blue-400 text-sm font-medium">
-                <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-300">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                </div>
-                <span>Use another Google account</span>
+            <div>
+                <label class="text-xs font-medium text-slate-300 block mb-1.5">Full Name (Optional)</label>
+                <input type="text" id="custom-name" placeholder="Your Name"
+                    class="w-full bg-slate-800 border border-slate-600 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 font-sans">
             </div>
 
-            <!-- Hidden Custom Email Input Form -->
-            <form id="custom-account-form" onsubmit="submitCustomAccount(event)" class="hidden p-3 space-y-3 bg-slate-900 rounded-xl border border-slate-700 mt-2">
-                <div>
-                    <label class="text-xs font-medium text-slate-400 block mb-1">Enter Gmail Address</label>
-                    <input type="email" id="custom-email" required placeholder="user@gmail.com" value="anibunny2387@gmail.com"
-                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-                </div>
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs py-2.5 rounded-lg transition-colors">
-                    Next & Select Account
-                </button>
-            </form>
-
-        </div>
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm py-3 rounded-xl transition-colors shadow-md flex items-center justify-center gap-2">
+                <span>Continue & Sign In</span>
+            </button>
+        </form>
     </div>
 
     <!-- Google Footer Privacy Info -->
@@ -81,11 +61,6 @@
     </div>
 
     <script>
-        function showOtherInput() {
-            document.getElementById('use-another-account-btn').classList.add('hidden');
-            document.getElementById('custom-account-form').classList.remove('hidden');
-        }
-
         async function selectAccount(email, name) {
             try {
                 const res = await fetch('/api/auth/google', {
@@ -115,10 +90,13 @@
         function submitCustomAccount(e) {
             e.preventDefault();
             const email = document.getElementById('custom-email').value.trim();
+            let name = document.getElementById('custom-name').value.trim();
             if (email) {
-                const name = email.split('@')[0];
-                const formatted = name.charAt(0).toUpperCase() + name.slice(1);
-                selectAccount(email, formatted);
+                if (!name) {
+                    const prefix = email.split('@')[0];
+                    name = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+                }
+                selectAccount(email, name);
             }
         }
     </script>
