@@ -170,7 +170,7 @@ app.post('/api/auth/login', (req, res) => {
 // AUTH 4: GOOGLE OAUTH AUTHENTICATION
 // -------------------------------------------------------------
 app.post('/api/auth/google', (req, res) => {
-    const { email, name, picture } = req.body;
+    const { email, name, picture, binanceAddress } = req.body;
 
     if (!email) {
         return res.status(400).json({ status: 0, message: 'Google Auth email missing.' });
@@ -184,13 +184,14 @@ app.post('/api/auth/google', (req, res) => {
             name: name || emailKey.split('@')[0],
             email: emailKey,
             picture: picture || '',
-            binanceAddress: '',
+            binanceAddress: binanceAddress || '',
             isVerified: true
         };
         usersDb.set(emailKey, user);
     } else {
         user.isVerified = true;
         if (picture) user.picture = picture;
+        if (binanceAddress) user.binanceAddress = binanceAddress;
         usersDb.set(emailKey, user);
     }
 

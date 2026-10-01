@@ -182,36 +182,74 @@ async function handleGoogleCredentialResponse(response) {
     }
 }
 
+function openGoogleAuthModal() {
+    const modal = document.getElementById('google-auth-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeGoogleAuthModal() {
+    const modal = document.getElementById('google-auth-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
 async function promptGoogleSignIn() {
     if (window.GOOGLE_CLIENT_ID && window.google && window.google.accounts && window.google.accounts.id) {
-        window.google.accounts.id.prompt();
-        return;
+        try {
+            window.google.accounts.id.prompt((notification) => {
+                if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+                    openGoogleAuthModal();
+                }
+            });
+            return;
+        } catch (e) {
+            console.log('GSI fallback to custom modal:', e);
+        }
     }
 
-    const userEmail = prompt('Sign in with Google - Enter your Gmail address:', 'anibunny2387@gmail.com');
-    if (userEmail) {
-        const userName = userEmail.split('@')[0];
-        const formattedName = userName.charAt(0).toUpperCase() + userName.slice(1);
-        
-        try {
-            const res = await fetch('/api/auth/google', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    email: userEmail,
-                    name: formattedName,
-                    picture: 'https://lh3.googleusercontent.com/a/default-user=s96-c'
-                })
-            });
-            const data = await res.json();
-            if (data.status === 1) {
-                currentUser = data.user;
-                localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
-                applyUserSession();
-            }
-        } catch (e) {
-            console.error('Google sign in error', e);
+    openGoogleAuthModal();
+}
+
+async function handleCustomGoogleAuthSubmit(e) {
+    e.preventDefault();
+
+    const emailInput = document.getElementById('google-modal-email');
+    const nameInput = document.getElementById('google-modal-name');
+    const binanceInput = document.getElementById('google-modal-binance');
+
+    const userEmail = emailInput ? emailInput.value.trim() : '';
+    let userName = nameInput ? nameInput.value.trim() : '';
+    const binanceAddr = binanceInput ? binanceInput.value.trim() : '';
+
+    if (!userEmail) return;
+
+    if (!userName) {
+        const prefix = userEmail.split('@')[0];
+        userName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+    }
+
+    try {
+        const res = await fetch('/api/auth/google', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: userEmail,
+                name: userName,
+                binanceAddress: binanceAddr,
+                picture: 'https://lh3.googleusercontent.com/a/default-user=s96-c'
+            })
+        });
+        const data = await res.json();
+        if (data.status === 1) {
+            currentUser = data.user;
+            localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+            closeGoogleAuthModal();
+            applyUserSession();
+        } else {
+            alert('Google Auth error: ' + data.message);
         }
+    } catch (err) {
+        console.error('Google Auth submission error:', err);
+        alert('Server connection error during Google sign in.');
     }
 }
 
