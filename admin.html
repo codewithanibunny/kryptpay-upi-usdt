@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KryptPay Executive Admin Control Panel</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 6 CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Plus Jakarta Sans & Playfair Display -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,800;1,600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#06090E',
+                        cardbg: '#0F172A',
+                        cardborder: '#1E293B',
+                    },
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        serif: ['"Playfair Display"', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            background-color: #06090E;
+            color: #F8FAFC;
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(30, 41, 59, 0.8);
+        }
+    </style>
+</head>
+<body class="min-h-screen font-sans flex flex-col justify-between selection:bg-amber-500 selection:text-black">
+
+    <!-- ADMIN LOGIN MODAL (Visible if not authenticated) -->
+    <div id="admin-login-view" class="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-50 flex items-center justify-center p-4">
+        <div class="glass-card rounded-3xl max-w-md w-full p-8 border border-amber-500/40 shadow-2xl text-center space-y-6">
+            <div class="w-16 h-16 bg-gradient-to-tr from-amber-500 to-emerald-500 rounded-2xl flex items-center justify-center mx-auto text-slate-950 text-3xl font-black shadow-lg shadow-amber-500/20">
+                <i class="fa-solid fa-crown"></i>
+            </div>
+
+            <div>
+                <h2 class="font-serif font-bold text-3xl text-white tracking-tight">Executive Admin</h2>
+                <p class="text-xs text-slate-400 mt-1">Enter Root Admin ID and Password to manage platform</p>
+            </div>
+
+            <form onsubmit="handleAdminLogin(event)" class="space-y-4 text-left">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 block mb-1">Admin ID</label>
+                    <input type="text" id="admin-id-input" required placeholder="Aniketwantchai"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 block mb-1">Admin Password</label>
+                    <input type="password" id="admin-pass-input" required placeholder="••••••••••••"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-amber-500">
+                </div>
+
+                <div id="admin-login-error" class="bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl p-3 text-xs font-semibold text-center hidden">
+                    Invalid Admin ID or Password!
+                </div>
+
+                <button type="submit" id="admin-login-btn"
+                    class="w-full bg-gradient-to-r from-amber-500 via-emerald-400 to-teal-500 hover:opacity-95 text-slate-950 font-black text-sm py-4 rounded-xl shadow-lg transition-all">
+                    <i class="fa-solid fa-shield-halved mr-1.5"></i> Authenticate & Enter Control Panel
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN ADMIN CONTROL PANEL (Visible after Admin Login) -->
+    <div id="admin-dashboard-view" class="hidden flex-1">
+        
+        <!-- Top Navigation Bar -->
+        <nav class="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-amber-500/20 border border-amber-500/40 text-amber-400 rounded-xl flex items-center justify-center font-black text-xl">
+                        <i class="fa-solid fa-crown"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-serif font-bold text-xl text-white tracking-tight">KryptPay <span class="text-amber-400">Root Admin</span></h1>
+                        <p class="text-[10px] text-slate-400 font-mono">Control Panel • Logged in as <strong class="text-emerald-400">Aniketwantchai</strong></p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button onclick="fetchAdminData()" class="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 px-3.5 py-2 rounded-xl flex items-center gap-2">
+                        <i class="fa-solid fa-arrows-rotate"></i> Refresh Data
+                    </button>
+                    <button onclick="handleAdminLogout()" class="text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-3.5 py-2 rounded-xl flex items-center gap-1.5 font-bold">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+
+            <!-- 4 SUMMARY METRIC CARDS -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                <!-- Card 1: Total Gross Deposits -->
+                <div class="glass-card rounded-2xl p-5 border-emerald-500/30">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Gross Deposits</p>
+                            <h3 id="stat-deposits-gross" class="font-display font-black text-2xl sm:text-3xl text-white mt-1">₹0.00</h3>
+                        </div>
+                        <div class="w-10 h-10 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-money-bill-wave"></i>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-emerald-400 mt-3 flex items-center gap-1">
+                        <i class="fa-solid fa-circle-check"></i> Total gross UPI payments processed
+                    </p>
+                </div>
+
+                <!-- Card 2: Admin Commission (20% Profit) -->
+                <div class="glass-card rounded-2xl p-5 border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-bold text-amber-400 uppercase tracking-wider">Your Admin Profit (20%)</p>
+                            <h3 id="stat-fees-earned" class="font-display font-black text-2xl sm:text-3xl text-amber-400 mt-1">₹0.00</h3>
+                        </div>
+                        <div class="w-10 h-10 bg-amber-500/20 text-amber-400 rounded-xl flex items-center justify-center text-lg border border-amber-500/40">
+                            <i class="fa-solid fa-piggy-bank"></i>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-amber-400/80 mt-3 font-medium">
+                        💰 20% Merchant collection commission kept by you
+                    </p>
+                </div>
+
+                <!-- Card 3: Total USDT Dispatched -->
+                <div class="glass-card rounded-2xl p-5 border-cyan-500/30">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">USDT Converted & Sent</p>
+                            <h3 id="stat-usdt-dispatched" class="font-display font-black text-2xl sm:text-3xl text-cyan-400 mt-1">0.00 USDT</h3>
+                        </div>
+                        <div class="w-10 h-10 bg-cyan-500/20 text-cyan-400 rounded-xl flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-right-left"></i>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-cyan-400 mt-3">
+                        ⚡ Delivered to Binance BEP20 addresses
+                    </p>
+                </div>
+
+                <!-- Card 4: Registered Users -->
+                <div class="glass-card rounded-2xl p-5 border-slate-700">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active Platform Users</p>
+                            <h3 id="stat-total-users" class="font-display font-black text-2xl sm:text-3xl text-white mt-1">0</h3>
+                        </div>
+                        <div class="w-10 h-10 bg-slate-800 text-slate-300 rounded-xl flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-users"></i>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-3">
+                        Verified user accounts registered
+                    </p>
+                </div>
+
+            </div>
+
+            <!-- MODE SWITCH TABS: TRANSACTIONS vs USERS -->
+            <div class="flex border-b border-slate-800 gap-4">
+                <button onclick="switchAdminTab('transactions')" id="tab-btn-tx" class="pb-3 font-bold text-sm text-amber-400 border-b-2 border-amber-400 flex items-center gap-2">
+                    <i class="fa-solid fa-list-check"></i> Live Transaction Ledger
+                </button>
+                <button onclick="switchAdminTab('users')" id="tab-btn-users" class="pb-3 font-bold text-sm text-slate-400 hover:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-users-gear"></i> User Wallet Management
+                </button>
+            </div>
+
+            <!-- TAB 1: LIVE TRANSACTIONS TABLE -->
+            <div id="admin-view-transactions" class="space-y-4">
+                
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-slate-400">Filter Status:</span>
+                        <button onclick="filterTransactions('ALL')" id="filter-all" class="px-3 py-1 rounded-xl text-xs font-bold bg-amber-500 text-slate-950">ALL</button>
+                        <button onclick="filterTransactions('DEPOSIT')" id="filter-deposit" class="px-3 py-1 rounded-xl text-xs font-bold bg-slate-800 text-slate-400 hover:text-white">DEPOSITS</button>
+                        <button onclick="filterTransactions('CONVERT')" id="filter-convert" class="px-3 py-1 rounded-xl text-xs font-bold bg-slate-800 text-slate-400 hover:text-white">CONVERSIONS</button>
+                        <button onclick="filterTransactions('PENDING')" id="filter-pending" class="px-3 py-1 rounded-xl text-xs font-bold bg-slate-800 text-slate-400 hover:text-white">PENDING</button>
+                    </div>
+
+                    <div class="text-xs text-slate-400 font-mono">
+                        Showing <span id="tx-count-display" class="text-white font-bold">0</span> transactions
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-3xl overflow-hidden border border-slate-800 shadow-2xl">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-900/90 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                                <tr>
+                                    <th class="py-3.5 px-4">Order Ref</th>
+                                    <th class="py-3.5 px-4">User Email</th>
+                                    <th class="py-3.5 px-4">Type</th>
+                                    <th class="py-3.5 px-4">Gross INR</th>
+                                    <th class="py-3.5 px-4">Net Credit</th>
+                                    <th class="py-3.5 px-4">USDT</th>
+                                    <th class="py-3.5 px-4">Status</th>
+                                    <th class="py-3.5 px-4">Bank UTR</th>
+                                    <th class="py-3.5 px-4">BSC TxHash</th>
+                                    <th class="py-3.5 px-4 text-right">Admin Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-tx-rows" class="divide-y divide-slate-800/60 font-mono text-slate-300">
+                                <tr>
+                                    <td colspan="10" class="py-8 text-center text-slate-500 font-sans">
+                                        <i class="fa-solid fa-spinner animate-spin text-amber-400 text-xl mr-2"></i> Loading transactions data...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- TAB 2: USER MANAGEMENT TABLE -->
+            <div id="admin-view-users" class="space-y-4 hidden">
+                
+                <div class="glass-card rounded-3xl overflow-hidden border border-slate-800 shadow-2xl">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-900/90 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                                <tr>
+                                    <th class="py-3.5 px-4">User Name</th>
+                                    <th class="py-3.5 px-4">Email Address</th>
+                                    <th class="py-3.5 px-4">Wallet Balance (INR)</th>
+                                    <th class="py-3.5 px-4">Binance BEP20 Address</th>
+                                    <th class="py-3.5 px-4">Email Verified</th>
+                                    <th class="py-3.5 px-4 text-right">Admin Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-user-rows" class="divide-y divide-slate-800/60 text-slate-300">
+                                <tr>
+                                    <td colspan="6" class="py-8 text-center text-slate-500 font-sans">
+                                        <i class="fa-solid fa-spinner animate-spin text-amber-400 text-xl mr-2"></i> Loading user accounts...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+    </div>
+
+    <!-- ADMIN EDIT BALANCE MODAL -->
+    <div id="edit-balance-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-card rounded-3xl max-w-sm w-full p-6 border border-amber-500/40 shadow-2xl space-y-4">
+            <h3 class="font-serif font-bold text-xl text-white">Adjust User Balance</h3>
+            <p class="text-xs text-slate-400">User: <strong id="modal-user-email" class="text-emerald-400 font-mono">user@example.com</strong></p>
+
+            <div>
+                <label class="text-xs font-semibold text-slate-400 block mb-1">New Wallet Balance (INR)</label>
+                <input type="number" id="modal-new-balance-input" step="0.01" min="0" required
+                    class="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 text-lg font-bold text-emerald-400 focus:outline-none focus:border-amber-500 font-mono">
+            </div>
+
+            <div class="flex gap-2">
+                <button onclick="closeEditBalanceModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs">
+                    Cancel
+                </button>
+                <button onclick="submitUserBalanceAdjustment()" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl text-xs">
+                    Save Balance
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="border-t border-slate-900 py-4 text-center text-xs text-slate-600">
+        KryptPay Executive Root Admin • Logged in as Aniketwantchai
+    </footer>
+
+    <!-- ADMIN SCRIPTS -->
+    <script>
+        let currentFilter = 'ALL';
+        let allTransactionsData = [];
+        let editingUserEmail = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedToken = sessionStorage.getItem('kryptpay_admin_token');
+            if (savedToken === 'KRYPTPAY_ADMIN_TOKEN_SECURE_999') {
+                showAdminDashboard();
+            }
+        });
+
+        async function handleAdminLogin(e) {
+            e.preventDefault();
+            const idInput = document.getElementById('admin-id-input').value.trim();
+            const passInput = document.getElementById('admin-pass-input').value;
+            const errBanner = document.getElementById('admin-login-error');
+
+            errBanner.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: idInput, password: passInput })
+                });
+
+                const data = await res.json();
+                if (data.status === 1 && data.adminToken) {
+                    sessionStorage.setItem('kryptpay_admin_token', data.adminToken);
+                    showAdminDashboard();
+                } else {
+                    errBanner.innerText = data.message || 'Invalid Admin ID or Password!';
+                    errBanner.classList.remove('hidden');
+                }
+            } catch (err) {
+                errBanner.innerText = 'Server connection error during admin login.';
+                errBanner.classList.remove('hidden');
+            }
+        }
+
+        function showAdminDashboard() {
+            document.getElementById('admin-login-view').classList.add('hidden');
+            document.getElementById('admin-dashboard-view').classList.remove('hidden');
+            fetchAdminData();
+            setInterval(fetchAdminData, 5000); // Auto-refresh data every 5 seconds
+        }
+
+        function handleAdminLogout() {
+            sessionStorage.removeItem('kryptpay_admin_token');
+            window.location.reload();
+        }
+
+        async function fetchAdminData() {
+            try {
+                const res = await fetch('/api/admin/data');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === 1) {
+                        // Render Stats
+                        document.getElementById('stat-deposits-gross').innerText = `₹${parseFloat(data.stats.totalDepositsGross).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+                        document.getElementById('stat-fees-earned').innerText = `₹${parseFloat(data.stats.totalFeesEarned).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+                        document.getElementById('stat-usdt-dispatched').innerText = `${parseFloat(data.stats.totalUsdtDispatched).toFixed(2)} USDT`;
+                        document.getElementById('stat-total-users').innerText = data.stats.totalUsers;
+
+                        allTransactionsData = data.transactions || [];
+                        renderTransactionsTable();
+                        renderUsersTable(data.users || []);
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching admin data:', err);
+            }
+        }
+
+        function filterTransactions(status) {
+            currentFilter = status;
+            ['all', 'deposit', 'convert', 'pending'].forEach(f => {
+                const btn = document.getElementById(`filter-${f}`);
+                if (btn) {
+                    if (f.toUpperCase() === status) {
+                        btn.className = "px-3 py-1 rounded-xl text-xs font-bold bg-amber-500 text-slate-950";
+                    } else {
+                        btn.className = "px-3 py-1 rounded-xl text-xs font-bold bg-slate-800 text-slate-400 hover:text-white";
+                    }
+                }
+            });
+            renderTransactionsTable();
+        }
+
+        function renderTransactionsTable() {
+            const tbody = document.getElementById('admin-tx-rows');
+            if (!tbody) return;
+
+            let filtered = allTransactionsData;
+            if (currentFilter === 'DEPOSIT') {
+                filtered = allTransactionsData.filter(o => o.type === 'DEPOSIT' || o.type === 'BUY');
+            } else if (currentFilter === 'CONVERT') {
+                filtered = allTransactionsData.filter(o => o.type === 'CONVERT' || o.type === 'WITHDRAW');
+            } else if (currentFilter === 'PENDING') {
+                filtered = allTransactionsData.filter(o => o.status === 'PENDING' || o.status === 'PROCESSING');
+            }
+
+            document.getElementById('tx-count-display').innerText = filtered.length;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="10" class="py-8 text-center text-slate-500 font-sans">
+                            No transactions found matching filter <strong class="text-slate-300">${currentFilter}</strong>.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(o => {
+                const isDeposit = o.type === 'DEPOSIT' || o.type === 'BUY';
+                const typeBadge = isDeposit
+                    ? '<span class="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">DEPOSIT</span>'
+                    : '<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">CONVERT</span>';
+
+                const isCompleted = o.status === 'COMPLETED' || o.status === 'PAID' || o.status === 'SUCCESS';
+                const isProcessing = o.status === 'PENDING' || o.status === 'PROCESSING';
+
+                let statusBadge = '';
+                if (isProcessing) {
+                    statusBadge = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded font-bold animate-pulse">PENDING</span>`;
+                } else if (isCompleted) {
+                    statusBadge = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-bold">COMPLETED</span>`;
+                } else {
+                    statusBadge = `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded font-bold">FAILED</span>`;
+                }
+
+                const grossAmt = parseFloat(o.amount || 0).toFixed(2);
+                const netAmt = (grossAmt * 0.80).toFixed(2);
+
+                const usdtCol = isDeposit ? '-' : `${o.usdtAmount} USDT`;
+
+                let actionButtons = '';
+                if (isProcessing) {
+                    actionButtons = `
+                        <button onclick="updateOrderStatus('${o.merchant_order_no}', 'COMPLETED')" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-2.5 py-1 rounded-lg text-[10px] mr-1">
+                            Approve / Complete
+                        </button>
+                        <button onclick="updateOrderStatus('${o.merchant_order_no}', 'FAILED')" class="bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 font-bold px-2.5 py-1 rounded-lg text-[10px]">
+                            Reject
+                        </button>
+                    `;
+                } else {
+                    actionButtons = `<span class="text-slate-600 text-[10px]">Finalized</span>`;
+                }
+
+                return `
+                    <tr class="hover:bg-slate-900/60 transition-colors">
+                        <td class="py-3 px-4 font-bold text-white">${o.merchant_order_no}</td>
+                        <td class="py-3 px-4 font-sans font-semibold text-slate-300">${o.userEmail || '-'}</td>
+                        <td class="py-3 px-4">${typeBadge}</td>
+                        <td class="py-3 px-4 font-bold text-white">₹${grossAmt}</td>
+                        <td class="py-3 px-4 font-bold text-emerald-400">₹${netAmt}</td>
+                        <td class="py-3 px-4 font-bold text-amber-400">${usdtCol}</td>
+                        <td class="py-3 px-4">${statusBadge}</td>
+                        <td class="py-3 px-4 text-slate-300 text-[11px]">${o.utr || '-'}</td>
+                        <td class="py-3 px-4 text-cyan-400 text-[11px]">${o.txHash ? o.txHash.substring(0, 10) + '...' : '-'}</td>
+                        <td class="py-3 px-4 text-right">${actionButtons}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderUsersTable(usersList) {
+            const tbody = document.getElementById('admin-user-rows');
+            if (!tbody) return;
+
+            if (usersList.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="py-8 text-center text-slate-500 font-sans">
+                            No registered users found in the database.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = usersList.map(u => {
+                const bal = parseFloat(u.walletBalance || 0).toFixed(2);
+                const isVer = u.isVerified
+                    ? `<span class="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-[10px] font-bold">✓ VERIFIED</span>`
+                    : `<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-[10px] font-bold">UNVERIFIED</span>`;
+
+                return `
+                    <tr class="hover:bg-slate-900/60 transition-colors">
+                        <td class="py-3 px-4 font-bold text-white">${u.name}</td>
+                        <td class="py-3 px-4 font-mono text-slate-300">${u.email}</td>
+                        <td class="py-3 px-4 font-mono font-bold text-emerald-400 text-sm">₹${bal} INR</td>
+                        <td class="py-3 px-4 font-mono text-slate-400 text-[11px]">${u.binanceAddress || 'Not set'}</td>
+                        <td class="py-3 px-4">${isVer}</td>
+                        <td class="py-3 px-4 text-right">
+                            <button onclick="openEditBalanceModal('${u.email}', '${bal}')" class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 font-bold px-2.5 py-1 rounded-lg text-[10px]">
+                                Edit Balance
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function updateOrderStatus(orderNo, newStatus) {
+            if (!confirm(`Are you sure you want to mark order ${orderNo} as ${newStatus}?`)) return;
+
+            try {
+                const res = await fetch('/api/admin/update-order-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ orderNo, newStatus })
+                });
+                const data = await res.json();
+                if (data.status === 1) {
+                    fetchAdminData();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (e) {
+                alert('Connection error updating order status.');
+            }
+        }
+
+        function openEditBalanceModal(email, currentBal) {
+            editingUserEmail = email;
+            document.getElementById('modal-user-email').innerText = email;
+            document.getElementById('modal-new-balance-input').value = currentBal;
+            document.getElementById('edit-balance-modal').classList.remove('hidden');
+        }
+
+        function closeEditBalanceModal() {
+            document.getElementById('edit-balance-modal').classList.add('hidden');
+        }
+
+        async function submitUserBalanceAdjustment() {
+            const newBal = document.getElementById('modal-new-balance-input').value;
+            if (!editingUserEmail || newBal === '') return;
+
+            try {
+                const res = await fetch('/api/admin/update-user-balance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: editingUserEmail, newBalance: newBal })
+                });
+                const data = await res.json();
+                if (data.status === 1) {
+                    closeEditBalanceModal();
+                    fetchAdminData();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (e) {
+                alert('Connection error adjusting balance.');
+            }
+        }
+
+        function switchAdminTab(tab) {
+            const txView = document.getElementById('admin-view-transactions');
+            const usersView = document.getElementById('admin-view-users');
+            const btnTx = document.getElementById('tab-btn-tx');
+            const btnUsers = document.getElementById('tab-btn-users');
+
+            if (tab === 'transactions') {
+                txView.classList.remove('hidden');
+                usersView.classList.add('hidden');
+                btnTx.className = "pb-3 font-bold text-sm text-amber-400 border-b-2 border-amber-400 flex items-center gap-2";
+                btnUsers.className = "pb-3 font-bold text-sm text-slate-400 hover:text-white flex items-center gap-2";
+            } else {
+                usersView.classList.remove('hidden');
+                txView.classList.add('hidden');
+                btnUsers.className = "pb-3 font-bold text-sm text-amber-400 border-b-2 border-amber-400 flex items-center gap-2";
+                btnTx.className = "pb-3 font-bold text-sm text-slate-400 hover:text-white flex items-center gap-2";
+            }
+        }
+    </script>
+</body>
+</html>

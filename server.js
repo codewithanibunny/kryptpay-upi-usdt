@@ -683,6 +683,127 @@ app.get('/api/check-order-status/:orderNo', (req, res) => {
     });
 });
 
+// -------------------------------------------------------------
+// 5. ADMIN CONTROL PANEL API ENDPOINTS (/admin)
+// Credentials: ID = Aniketwantchai | PASS = Aniketwantsex
+// -------------------------------------------------------------
+
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
+app.post('/api/admin/login', (req, res) => {
+    const { username, password } = req.body;
+    if (username === 'Aniketwantchai' && password === 'Aniketwantsex') {
+        console.log('👑 [ADMIN LOGGED IN] Aniketwantchai authenticated successfully.');
+        return res.json({
+            status: 1,
+            message: 'Admin Authentication Successful!',
+            adminToken: 'KRYPTPAY_ADMIN_TOKEN_SECURE_999'
+        });
+    } else {
+        console.log(`⚠️ [ADMIN LOGIN FAILED] Attempted username: ${username}`);
+        return res.status(401).json({ status: 0, message: 'Invalid Admin ID or Password!' });
+    }
+});
+
+app.get('/api/admin/data', (req, res) => {
+    const allUsers = Array.from(usersDb.values()).map(u => ({
+        name: u.name,
+        email: u.email,
+        walletBalance: u.walletBalance || 0.00,
+        binanceAddress: u.binanceAddress || '',
+        isVerified: u.isVerified || false
+    }));
+
+    const allOrders = Array.from(ordersDb.values());
+
+    let totalDepositsGross = 0;
+    let totalFeesEarned = 0;
+    let totalUsdtDispatched = 0;
+
+    allOrders.forEach(o => {
+        if (o.status === 'COMPLETED' || o.status === 'PAID') {
+            if (o.type === 'DEPOSIT' || o.type === 'BUY') {
+                const gross = parseFloat(o.amount || 0);
+                totalDepositsGross += gross;
+                totalFeesEarned += gross * 0.20;
+            } else if (o.type === 'CONVERT' || o.type === 'WITHDRAW') {
+                totalUsdtDispatched += parseFloat(o.usdtAmount || 0);
+            }
+        }
+    });
+
+    res.json({
+        status: 1,
+        stats: {
+            totalUsers: allUsers.length,
+            totalDepositsGross: totalDepositsGross.toFixed(2),
+            totalFeesEarned: totalFeesEarned.toFixed(2),
+            totalUsdtDispatched: totalUsdtDispatched.toFixed(2),
+            pendingOrdersCount: allOrders.filter(o => o.status === 'PENDING' || o.status === 'PROCESSING').length
+        },
+        users: allUsers,
+        transactions: allOrders.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    });
+});
+
+app.post('/api/admin/update-order-status', (req, res) => {
+    const { orderNo, newStatus } = req.body;
+    const order = ordersDb.get(orderNo);
+
+    if (!order) {
+        return res.status(404).json({ status: 0, message: 'Order not found' });
+    }
+
+    const prevStatus = order.status;
+    order.status = newStatus;
+
+    if (newStatus === 'COMPLETED' && prevStatus !== 'COMPLETED') {
+        if (order.type === 'DEPOSIT' || order.type === 'BUY') {
+            const grossAmt = parseFloat(order.amount || 0);
+            const netCredited = parseFloat((grossAmt * 0.80).toFixed(2));
+            const emailKey = (order.userEmail || '').toLowerCase();
+            if (usersDb.has(emailKey)) {
+                const u = usersDb.get(emailKey);
+                u.walletBalance = parseFloat(((u.walletBalance || 0) + netCredited).toFixed(2));
+                usersDb.set(emailKey, u);
+                console.log(`👑 [ADMIN MANUALLY CREDITED] ${emailKey} +₹${netCredited} INR | New Bal: ₹${u.walletBalance}`);
+            }
+            order.utr = order.utr || `ADMIN-UTR-${Date.now()}`;
+        } else if (order.type === 'CONVERT' || order.type === 'WITHDRAW') {
+            order.utr = order.utr || `SWAP-${Date.now()}`;
+            order.txHash = order.txHash || '0x' + crypto.randomBytes(32).toString('hex');
+        }
+    }
+
+    ordersDb.set(orderNo, order);
+    console.log(`👑 [ADMIN STATUS UPDATE] Order ${orderNo} status changed from ${prevStatus} ➔ ${newStatus}`);
+
+    res.json({ status: 1, message: `Order ${orderNo} status updated to ${newStatus}` });
+});
+
+app.post('/api/admin/update-user-balance', (req, res) => {
+    const { email, newBalance } = req.body;
+    const emailKey = (email || '').toLowerCase().trim();
+    const user = usersDb.get(emailKey);
+
+    if (!user) {
+        return res.status(404).json({ status: 0, message: 'User not found' });
+    }
+
+    const numBal = parseFloat(newBalance);
+    if (isNaN(numBal) || numBal < 0) {
+        return res.status(400).json({ status: 0, message: 'Invalid balance amount' });
+    }
+
+    user.walletBalance = numBal;
+    usersDb.set(emailKey, user);
+    console.log(`👑 [ADMIN BALANCE ADJUSTMENT] User ${emailKey} balance set to ₹${numBal}`);
+
+    res.json({ status: 1, message: `User balance updated to ₹${numBal.toFixed(2)}` });
+});
+
 // Start Express Server
 app.listen(PORT, () => {
     console.log(`====================================================`);
