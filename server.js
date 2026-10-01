@@ -17,11 +17,12 @@ app.use(express.static(path.join(__dirname, '/')));
 
 // MPXPays Merchant Configuration Credentials
 const MPX_CONFIG = {
-    merchantId: process.env.MPX_MERCHANT_ID || '953001',
-    apiKey: process.env.MPX_API_KEY || 'c0806fe9ff2888463ccca695d757c1700ccafce85d6aa905da31446c239b1219',
+    merchantId: process.env.MPX_MERCHANT_ID || '953045',
+    apiKey: process.env.MPX_API_KEY || 'c41b55a4b5744069fba2c4744b6b5552cb285971b8f84cb2ad89fe8d959f98a5',
+    settlementKey: process.env.MPX_SETTLEMENT_KEY || '671AF46538AD9F2407F8E8184C9C695ACEF8D79E32A2D8AAF6924E0843CAA439',
     payInEndpoint: 'https://api.mpxpayss.com/api/payIn',
     // Dynamic callback URL fallback
-    callbackUrl: process.env.MPX_CALLBACK_URL || 'http://localhost:8080/api/mpxpay-webhook'
+    callbackUrl: process.env.MPX_CALLBACK_URL || 'http://localhost:5000/api/mpxpay-webhook'
 };
 
 // In-Memory Order Storage (merchant_order_no -> order details)
