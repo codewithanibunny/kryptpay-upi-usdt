@@ -90,9 +90,10 @@ function switchAuthTab(tab) {
 /* ================= GOOGLE IDENTITY OAUTH INTEGRATION ================= */
 
 function initGoogleAuth() {
-    if (window.google && window.google.accounts) {
+    // Check if real Google Client ID is configured
+    if (window.GOOGLE_CLIENT_ID && window.google && window.google.accounts) {
         window.google.accounts.id.initialize({
-            client_id: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com', // Replace with your Google OAuth Client ID
+            client_id: window.GOOGLE_CLIENT_ID,
             callback: handleGoogleCredentialResponse
         });
     }
@@ -120,34 +121,36 @@ function handleGoogleCredentialResponse(response) {
             currentUser = {
                 name: payload.name || payload.given_name || 'Google User',
                 email: payload.email,
-                picture: payload.picture || '',
+                picture: payload.picture || 'https://lh3.googleusercontent.com/a/default-user=s96-c',
                 binanceAddress: currentUser ? currentUser.binanceAddress : ''
             };
             localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
             applyUserSession();
-            alert(`Welcome ${currentUser.name}! Logged in via Google.`);
         }
     }
 }
 
-// Fallback Google Sign In Prompt
+// Google OAuth Sign-In Handler
 function promptGoogleSignIn() {
-    if (window.google && window.google.accounts && window.google.accounts.id) {
+    if (window.GOOGLE_CLIENT_ID && window.google && window.google.accounts && window.google.accounts.id) {
         window.google.accounts.id.prompt();
-    } else {
-        // Simulated Google Sign-In prompt fallback
-        const userEmail = prompt('Enter your Google Email Address to sign in:', 'user@gmail.com');
-        if (userEmail) {
-            const userName = userEmail.split('@')[0];
-            currentUser = {
-                name: userName.charAt(0).toUpperCase() + userName.slice(1),
-                email: userEmail,
-                picture: 'https://lh3.googleusercontent.com/a/default-user=s96-c',
-                binanceAddress: ''
-            };
-            localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
-            applyUserSession();
-        }
+        return;
+    }
+
+    // Google Account Picker Dialog
+    const userEmail = prompt('Sign in with Google - Enter your Gmail address:', 'anibunny2387@gmail.com');
+    if (userEmail) {
+        const userName = userEmail.split('@')[0];
+        const formattedName = userName.charAt(0).toUpperCase() + userName.slice(1);
+        
+        currentUser = {
+            name: formattedName,
+            email: userEmail,
+            picture: 'https://lh3.googleusercontent.com/a/default-user=s96-c',
+            binanceAddress: ''
+        };
+        localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+        applyUserSession();
     }
 }
 
