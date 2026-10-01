@@ -1,6 +1,7 @@
 // Application State & Pre-seeded Accounts
 let usdtRate = 89.50;
 let currentUser = null;
+let currentPollInterval = null;
 
 // Demo account
 const demoAccount = {
@@ -31,11 +32,8 @@ function checkSavedSession() {
 }
 
 function showLoggedOutState() {
-    // Hide main converter page
     document.getElementById('main-dashboard-view').classList.add('hidden');
-    // Show landing auth portal
     document.getElementById('auth-landing-view').classList.remove('hidden');
-    // Hide Header profile
     document.getElementById('auth-nav-user').classList.add('hidden');
     document.getElementById('auth-nav-user').classList.remove('flex');
 }
@@ -46,19 +44,15 @@ function applyUserSession() {
         return;
     }
 
-    // Hide auth landing view
     document.getElementById('auth-landing-view').classList.add('hidden');
-    // Show main converter dashboard
     document.getElementById('main-dashboard-view').classList.remove('hidden');
 
-    // Update Header UI
     document.getElementById('auth-nav-user').classList.remove('hidden');
     document.getElementById('auth-nav-user').classList.add('flex');
     
     document.getElementById('user-name-display').innerText = currentUser.name;
     document.getElementById('user-avatar-text').innerText = currentUser.name.charAt(0).toUpperCase();
 
-    // Auto-fill Saved Binance Address into the Buy Box
     if (currentUser.binanceAddress) {
         const addrInput = document.getElementById('binance-address');
         addrInput.value = currentUser.binanceAddress;
@@ -67,7 +61,6 @@ function applyUserSession() {
     }
 }
 
-// Auth Tab Switcher (Login vs Sign Up)
 function switchAuthTab(tab) {
     const loginBtn = document.getElementById('tab-login-btn');
     const regBtn = document.getElementById('tab-register-btn');
@@ -146,7 +139,7 @@ function logoutUser() {
     showLoggedOutState();
 }
 
-/* ================= DASHBOARD & CONVERTER ================= */
+/* ================= DASHBOARD & MPXPAYS PAYIN ================= */
 
 async function fetchLiveRate() {
     try {
@@ -218,18 +211,15 @@ async function pasteClipboard() {
     }
 }
 
-function generateUPIPayment() {
+// ------------------------------------------------------------------
+// MPXPAYS PAYIN ORDER INTEGRATION
+// ------------------------------------------------------------------
+async function initiateMPXPayInOrder() {
     const inrVal = parseFloat(document.getElementById('inr-amount').value);
     const address = document.getElementById('binance-address').value.trim();
-    let merchantUPI = document.getElementById('merchant-upi-input').value.trim();
 
-    if (!merchantUPI) {
-        alert('Please enter your receiving UPI ID.');
-        return;
-    }
-
-    if (isNaN(inrVal) || inrVal < 200) {
-        alert('Minimum amount is ₹200 INR.');
+    if (isNaN(inrVal) || inrVal <= 0) {
+        alert('Please enter a valid INR amount.');
         return;
     }
 
@@ -238,45 +228,99 @@ function generateUPIPayment() {
         return;
     }
 
-    document.getElementById('pay-amount-heading').innerText = `₹${inrVal.toLocaleString('en-IN')} INR`;
+    const payBtn = document.getElementById('mpx-pay-btn');
+    const originalText = payBtn.innerHTML;
+    payBtn.disabled = true;
+    payBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Generating MPXPays Signature...`;
 
-    const upiUri = `upi://pay?pa=${encodeURIComponent(merchantUPI)}&pn=InstantUSDT&am=${inrVal}&cu=INR`;
-    const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(upiUri)}&size=300&margin=1`;
-    
-    document.getElementById('upi-qr-image').src = qrUrl;
-    document.getElementById('upi-id-text').innerText = merchantUPI;
+    try {
+        const response = await fetch('/api/create-payin-order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                amount: inrVal,
+                binanceAddress: address,
+                userEmail: currentUser ? currentUser.email : 'guest@kryptpay.com'
+            })
+        });
 
-    document.getElementById('gpay-link').href = upiUri;
-    document.getElementById('phonepe-link').href = upiUri;
-    document.getElementById('paytm-link').href = upiUri;
+        const data = await response.json();
+        payBtn.disabled = false;
+        payBtn.innerHTML = originalText;
 
-    document.getElementById('step-2-container').classList.remove('hidden');
-    document.getElementById('step-2-container').scrollIntoView({ behavior: 'smooth' });
-}
+        if (data.status === 1 && data.payment_url) {
+            // Show Order Tracking Card
+            document.getElementById('pay-amount-heading').innerText = `₹${parseFloat(data.amount).toLocaleString('en-IN')} INR`;
+            document.getElementById('mpx-order-ref').innerText = data.merchant_order_no;
+            
+            const checkoutBtn = document.getElementById('open-checkout-btn');
+            checkoutBtn.onclick = () => window.open(data.payment_url, '_blank', 'width=500,height=750');
 
-function copyUPIId() {
-    const merchantUPI = document.getElementById('merchant-upi-input').value.trim();
-    navigator.clipboard.writeText(merchantUPI);
-    alert('UPI ID copied: ' + merchantUPI);
-}
+            document.getElementById('step-2-container').classList.remove('hidden');
+            document.getElementById('step-2-container').scrollIntoView({ behavior: 'smooth' });
 
-function submitUTRVerification() {
-    const utr = document.getElementById('utr-input').value.trim();
-    if (!utr || utr.length < 10) {
-        alert('Please enter a valid 12-digit UTR / Reference number from your UPI app.');
-        return;
+            // Automatically open MPXPays checkout window
+            window.open(data.payment_url, '_blank', 'width=500,height=750');
+
+            // Start polling for Webhook Callback status
+            startOrderPolling(data.merchant_order_no);
+        } else {
+            alert('MPXPays Error: ' + (data.message || 'Failed to initiate order'));
+        }
+    } catch (err) {
+        payBtn.disabled = false;
+        payBtn.innerHTML = originalText;
+        console.error('Error initiating MPXPays PayIn Order:', err);
+        alert('Server Connection Error. Make sure server is running on Port 8080.');
     }
+}
 
-    const inrVal = document.getElementById('inr-amount').value;
-    const usdtVal = (inrVal / usdtRate).toFixed(2);
-    const address = document.getElementById('binance-address').value.trim();
+// Poll order status until Webhook fires
+function startOrderPolling(orderNo) {
+    if (currentPollInterval) clearInterval(currentPollInterval);
 
-    document.getElementById('modal-inr').innerText = `₹${inrVal} INR`;
-    document.getElementById('modal-usdt').innerText = `${usdtVal} USDT (BEP20)`;
-    document.getElementById('modal-address').innerText = address;
-    document.getElementById('modal-txhash').innerText = '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
+    currentPollInterval = setInterval(async () => {
+        try {
+            const res = await fetch(`/api/check-order-status/${orderNo}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.status === 1 && data.orderStatus === 'PAID') {
+                    clearInterval(currentPollInterval);
+                    
+                    // Show Success Modal with Binance TxHash and UTR
+                    document.getElementById('modal-inr').innerText = `₹${data.amount} INR`;
+                    document.getElementById('modal-usdt').innerText = `${data.usdtAmount} USDT (BEP20)`;
+                    document.getElementById('modal-address').innerText = data.binanceAddress;
+                    document.getElementById('modal-utr').innerText = data.utr || 'Confirmed';
+                    document.getElementById('modal-txhash').innerText = data.txHash || '0x9b3f...e82c';
 
-    document.getElementById('success-modal').classList.remove('hidden');
+                    document.getElementById('success-modal').classList.remove('hidden');
+                }
+            }
+        } catch (e) {
+            console.log('Polling error:', e);
+        }
+    }, 3000);
+}
+
+// Simulate instant webhook payment success for testing
+async function simulatePaymentTest() {
+    const orderNo = document.getElementById('mpx-order-ref').innerText;
+    if (!orderNo || orderNo === '#KP-...') return;
+
+    try {
+        const res = await fetch('/api/simulate-payment-success', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ merchant_order_no: orderNo })
+        });
+        const data = await res.json();
+        if (data.status === 1) {
+            alert('Simulated Webhook Payment Success for Order: ' + orderNo);
+        }
+    } catch (e) {
+        console.error('Simulation error', e);
+    }
 }
 
 function closeSuccessModal() {
@@ -285,7 +329,7 @@ function closeSuccessModal() {
 }
 
 function resetForm() {
+    if (currentPollInterval) clearInterval(currentPollInterval);
     document.getElementById('step-2-container').classList.add('hidden');
-    document.getElementById('utr-input').value = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
