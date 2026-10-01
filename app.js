@@ -841,23 +841,27 @@ async function pasteClipboard() {
 // MPXPAYS PAYIN ORDER INTEGRATION (BUY USDT)
 // ------------------------------------------------------------------
 async function initiateMPXPayInOrder() {
-    const inrVal = parseFloat(document.getElementById('inr-amount').value);
-    const address = document.getElementById('binance-address').value.trim();
+    const inrElem = document.getElementById('inr-amount');
+    const inrVal = inrElem ? parseFloat(inrElem.value) : 0;
 
     if (isNaN(inrVal) || inrVal <= 0) {
-        alert('Please enter a valid INR amount.');
+        alert('Please enter a valid INR deposit amount.');
         return;
     }
 
-    if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
-        alert('Please enter a valid Binance BEP20 USDT deposit address (starts with 0x).');
+    if (inrVal < 200) {
+        alert('Minimum deposit amount is ₹200 INR.');
         return;
     }
+
+    const address = (currentUser && currentUser.binanceAddress) ? currentUser.binanceAddress : '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
 
     const payBtn = document.getElementById('mpx-pay-btn');
-    const originalText = payBtn.innerHTML;
-    payBtn.disabled = true;
-    payBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Generating PayIn Signature...`;
+    const originalText = payBtn ? payBtn.innerHTML : '';
+    if (payBtn) {
+        payBtn.disabled = true;
+        payBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin mr-1"></i> Initiating UPI Deposit...`;
+    }
 
     try {
         const response = await fetch('/api/create-payin-order', {
@@ -871,27 +875,39 @@ async function initiateMPXPayInOrder() {
         });
 
         const data = await response.json();
-        payBtn.disabled = false;
-        payBtn.innerHTML = originalText;
+        if (payBtn) {
+            payBtn.disabled = false;
+            payBtn.innerHTML = originalText;
+        }
 
         if (data.status === 1 && data.payment_url) {
-            document.getElementById('pay-amount-heading').innerText = `₹${parseFloat(data.amount).toLocaleString('en-IN')} INR`;
-            document.getElementById('mpx-order-ref').innerText = data.merchant_order_no;
+            const payAmtHeading = document.getElementById('pay-amount-heading');
+            if (payAmtHeading) payAmtHeading.innerText = `₹${parseFloat(data.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })} INR`;
+            
+            const orderRefElem = document.getElementById('mpx-order-ref');
+            if (orderRefElem) orderRefElem.innerText = data.merchant_order_no;
             
             const checkoutBtn = document.getElementById('open-checkout-btn');
-            checkoutBtn.onclick = () => window.open(data.payment_url, '_blank', 'width=500,height=750');
+            if (checkoutBtn) {
+                checkoutBtn.onclick = () => window.open(data.payment_url, '_blank', 'width=500,height=750');
+            }
 
-            document.getElementById('step-2-container').classList.remove('hidden');
-            document.getElementById('step-2-container').scrollIntoView({ behavior: 'smooth' });
+            const step2Container = document.getElementById('step-2-container');
+            if (step2Container) {
+                step2Container.classList.remove('hidden');
+                step2Container.scrollIntoView({ behavior: 'smooth' });
+            }
 
             window.open(data.payment_url, '_blank', 'width=500,height=750');
-            startOrderPolling(data.merchant_order_no);
+            startAutoLedgerPolling();
         } else {
             alert('PayIn Error: ' + (data.message || 'Failed to initiate order'));
         }
     } catch (err) {
-        payBtn.disabled = false;
-        payBtn.innerHTML = originalText;
+        if (payBtn) {
+            payBtn.disabled = false;
+            payBtn.innerHTML = originalText;
+        }
         console.error('Error initiating PayIn Order:', err);
         alert('Server Connection Error.');
     }

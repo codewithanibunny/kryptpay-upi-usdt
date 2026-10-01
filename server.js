@@ -373,9 +373,11 @@ app.post('/api/create-payin-order', async (req, res) => {
     try {
         const { amount, binanceAddress, userEmail } = req.body;
 
-        if (!amount || !binanceAddress) {
-            return res.status(400).json({ status: 0, message: 'Missing amount or binanceAddress' });
+        if (!amount) {
+            return res.status(400).json({ status: 0, message: 'Missing deposit amount' });
         }
+
+        const userBinanceAddr = binanceAddress || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
 
         const numAmount = parseFloat(amount);
         if (isNaN(numAmount) || numAmount <= 0) {
