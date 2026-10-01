@@ -8,9 +8,18 @@ let pendingVerificationEmail = null;
 document.addEventListener('DOMContentLoaded', () => {
     fetchLiveRate();
     calculateUsdt();
-    calculateWithdrawInr();
     checkSavedSession();
     initGoogleAuth();
+
+    // Listen for Google Auth Popup Window message
+    window.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+            currentUser = event.data.user;
+            localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+            closeGoogleAuthModal();
+            applyUserSession();
+        }
+    });
 });
 
 // Check saved user session in LocalStorage
@@ -197,16 +206,24 @@ async function promptGoogleSignIn() {
         try {
             window.google.accounts.id.prompt((notification) => {
                 if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-                    openGoogleAuthModal();
+                    openGoogleAuthPopup();
                 }
             });
             return;
         } catch (e) {
-            console.log('GSI fallback to custom modal:', e);
+            console.log('GSI fallback to Google Auth Popup window:', e);
         }
     }
 
-    openGoogleAuthModal();
+    openGoogleAuthPopup();
+}
+
+function openGoogleAuthPopup() {
+    const popup = window.open('/google-auth.html', 'GoogleAuthPopup', 'width=520,height=630,left=450,top=100');
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        // Fallback to in-app modal if popups are blocked by browser settings
+        openGoogleAuthModal();
+    }
 }
 
 async function handleCustomGoogleAuthSubmit(e) {
