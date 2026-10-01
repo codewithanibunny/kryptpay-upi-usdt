@@ -4,6 +4,22 @@ const crypto = require('crypto');
 const axios = require('axios');
 const path = require('path');
 
+const fs = require('fs');
+
+// Auto-load .env configuration if present
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+    const envLines = fs.readFileSync(envPath, 'utf8').split('\n');
+    envLines.forEach(line => {
+        const idx = line.indexOf('=');
+        if (idx > 0) {
+            const k = line.substring(0, idx).trim();
+            const v = line.substring(idx + 1).trim();
+            if (k && !process.env[k]) process.env[k] = v;
+        }
+    });
+}
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -15,7 +31,7 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, '/')));
 
-// Google OAuth Client ID Configuration
+// Google OAuth Configuration
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 
 app.get('/api/config', (req, res) => {
