@@ -48,7 +48,7 @@ const MPX_CONFIG = {
     payInEndpoint: 'https://api.mpxpayss.com/api/payIn',
     callbackUrl: process.env.MPX_CALLBACK_URL || 'http://localhost:5000/api/mpxpay-webhook',
     // Fee Rates
-    collectionFeeRatePercent: 11.00, // 11%
+    collectionFeeRatePercent: 20.00, // 20%
     additionalFeeInr: 10.00         // ₹10.00
 };
 
@@ -515,9 +515,9 @@ app.post('/api/mpxpay-webhook', (req, res) => {
 
             ordersDb.set(merchant_order_no, existingOrder);
 
-            // Auto-Credit INR to User Wallet Balance (Net Amount after 11% fee)
+            // Auto-Credit INR to User Wallet Balance (Net Amount after 20% fee)
             const grossAmt = parseFloat(amount || existingOrder.amount || 0);
-            const netCredited = (grossAmt * 0.89).toFixed(2);
+            const netCredited = (grossAmt * 0.80).toFixed(2);
             
             const emailKey = (existingOrder.userEmail || '').toLowerCase();
             if (usersDb.has(emailKey)) {
@@ -577,6 +577,7 @@ app.post('/api/wallet/convert-usdt', (req, res) => {
         const merchantOrderNo = `KP-CONV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
         const txHash = '0x' + crypto.randomBytes(32).toString('hex');
 
+        // Create Order initially in PROCESSING state
         const newOrder = {
             merchant_order_no: merchantOrderNo,
             type: 'CONVERT',
@@ -586,9 +587,9 @@ app.post('/api/wallet/convert-usdt', (req, res) => {
             usdtAmount: usdtAmount,
             binanceAddress: binanceAddress,
             userEmail: emailKey,
-            status: 'COMPLETED',
-            utr: `SWAP-${Date.now()}`,
-            txHash: txHash,
+            status: 'PROCESSING',
+            utr: null,
+            txHash: null,
             created_at: new Date().toISOString()
         };
 
@@ -599,15 +600,28 @@ app.post('/api/wallet/convert-usdt', (req, res) => {
         }
         userOrdersDb.get(emailKey).unshift(merchantOrderNo);
 
-        console.log(`🔄 [WALLET CONVERTED] ${emailKey} converted ₹${numInr} INR ➔ ${usdtAmount} USDT | New Balance: ₹${user.walletBalance}`);
+        console.log(`⏳ [USDT DISPATCH INITIATED] Order ${merchantOrderNo} (₹${numInr} INR ➔ ${usdtAmount} USDT) -> Status: PROCESSING`);
+
+        // Async simulation: After 6 seconds, blockchain confirms USDT transaction
+        setTimeout(() => {
+            const order = ordersDb.get(merchantOrderNo);
+            if (order && order.status === 'PROCESSING') {
+                order.status = 'COMPLETED';
+                order.utr = `SWAP-${Date.now()}`;
+                order.txHash = '0x' + crypto.randomBytes(32).toString('hex');
+                order.completed_at = new Date().toISOString();
+                ordersDb.set(merchantOrderNo, order);
+                console.log(`✅ [USDT DISPATCH COMPLETED] Order ${merchantOrderNo} (${usdtAmount} USDT) dispatched on BSC to ${binanceAddress}`);
+            }
+        }, 6000);
 
         res.json({
             status: 1,
-            message: 'Conversion Successful!',
+            message: 'Conversion initiated! USDT is processing on the Binance BEP20 network...',
             newBalance: user.walletBalance,
             usdtAmount: usdtAmount,
-            txHash: txHash,
-            merchant_order_no: merchantOrderNo
+            merchant_order_no: merchantOrderNo,
+            orderStatus: 'PROCESSING'
         });
     } catch (err) {
         console.error('Error in convert-usdt:', err);
@@ -671,7 +685,7 @@ app.get('/api/check-order-status/:orderNo', (req, res) => {
 app.listen(PORT, () => {
     console.log(`====================================================`);
     console.log(`👑 KryptPay Executive Server running on Port ${PORT}`);
-    console.log(`💸 Collection Fee: 11.00% + ₹10.00`);
+    console.log(`💸 Collection Fee: 20.00% + ₹10.00`);
     console.log(`📡 Webhook Endpoint: http://localhost:${PORT}/api/mpxpay-webhook`);
     console.log(`====================================================`);
 });

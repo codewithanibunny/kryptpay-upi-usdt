@@ -647,7 +647,7 @@ function calculateDepositCredit() {
         return;
     }
 
-    const fee = inrVal * 0.11;
+    const fee = inrVal * 0.20;
     const netCredit = Math.max(0, inrVal - fee);
 
     if (grossElem) grossElem.innerText = `₹${inrVal.toFixed(2)}`;
@@ -774,14 +774,14 @@ async function submitWalletConversion() {
             localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
             updateWalletBalanceDisplay();
 
-            document.getElementById('modal-inr').innerText = `₹${inrVal.toFixed(2)} INR`;
-            document.getElementById('modal-usdt').innerText = `${data.usdtAmount} USDT (BEP20)`;
-            document.getElementById('modal-address').innerText = address;
-            document.getElementById('modal-utr').innerText = `SWAP-${Date.now()}`;
-            document.getElementById('modal-txhash').innerText = data.txHash ? data.txHash.substring(0, 14) + '...' : '0x9b3f...e82c';
+            // Clear input fields
+            if (inrInput) inrInput.value = '';
+            calculateConvertUsdt();
 
-            document.getElementById('success-modal').classList.remove('hidden');
+            // Switch to ledger tab to show Processing... state immediately
+            switchDashboardTab('history');
             loadUserTransactionLedger();
+            startAutoLedgerPolling();
         } else {
             alert('Conversion Error: ' + data.message);
         }
@@ -953,6 +953,23 @@ async function handleWithdrawalSubmit(e) {
 // ------------------------------------------------------------------
 // LOAD USER'S PRIVATE TRANSACTION HISTORY LEDGER
 // ------------------------------------------------------------------
+// ------------------------------------------------------------------
+// LOAD USER'S PRIVATE TRANSACTION HISTORY LEDGER & CONTINUOUS POLLING
+// ------------------------------------------------------------------
+
+let autoLedgerTimer = null;
+let trackedProcessingOrders = new Set();
+
+function startAutoLedgerPolling() {
+    if (autoLedgerTimer) clearInterval(autoLedgerTimer);
+    autoLedgerTimer = setInterval(() => {
+        if (currentUser && currentUser.email) {
+            loadUserTransactionLedger();
+            updateWalletBalanceDisplay();
+        }
+    }, 3000);
+}
+
 async function loadUserTransactionLedger() {
     if (!currentUser || !currentUser.email) return;
 
@@ -970,13 +987,69 @@ async function loadUserTransactionLedger() {
                 
                 tbody.innerHTML = data.transactions.map(tx => {
                     const isBuy = tx.type !== 'WITHDRAW';
-                    const badgeClass = tx.status === 'COMPLETED' || tx.status === 'PAID'
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                        : 'bg-amber-500/10 text-amber-400 border-amber-500/30';
-                    
                     const typeBadge = isBuy
                         ? '<span class="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">BUY</span>'
-                        : '<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">WITHDRAW</span>';
+                        : (tx.type === 'CONVERT' 
+                            ? '<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">CONVERT</span>'
+                            : '<span class="bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded font-bold">WITHDRAW</span>');
+
+                    const isProcessing = tx.status === 'PROCESSING' || tx.status === 'PENDING';
+                    const isCompleted = tx.status === 'COMPLETED' || tx.status === 'PAID' || tx.status === 'SUCCESS';
+
+                    if (isProcessing) {
+                        trackedProcessingOrders.add(tx.merchant_order_no);
+                    } else if (isCompleted && trackedProcessingOrders.has(tx.merchant_order_no)) {
+                        // Order completed! Remove from set and trigger success modal
+                        trackedProcessingOrders.delete(tx.merchant_order_no);
+                        
+                        const inrElem = document.getElementById('modal-inr');
+                        const usdtElem = document.getElementById('modal-usdt');
+                        const addrElem = document.getElementById('modal-address');
+                        const utrElem = document.getElementById('modal-utr');
+                        const hashElem = document.getElementById('modal-txhash');
+
+                        if (inrElem) inrElem.innerText = `₹${parseFloat(tx.amount).toFixed(2)} INR`;
+                        if (usdtElem) usdtElem.innerText = `${tx.usdtAmount} USDT (BEP20)`;
+                        if (addrElem) addrElem.innerText = tx.binanceAddress;
+                        if (utrElem) utrElem.innerText = tx.utr || 'Confirmed';
+                        if (hashElem) hashElem.innerText = tx.txHash ? tx.txHash.substring(0, 14) + '...' : '0x9b3f...e82c';
+
+                        const modal = document.getElementById('success-modal');
+                        if (modal) modal.classList.remove('hidden');
+                    }
+
+                    // Status Badge Markup
+                    let statusMarkup = '';
+                    if (isProcessing) {
+                        statusMarkup = `
+                            <span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 animate-pulse inline-flex items-center gap-1.5">
+                                <i class="fa-solid fa-spinner animate-spin text-[10px]"></i> Processing...
+                            </span>
+                        `;
+                    } else if (isCompleted) {
+                        statusMarkup = `
+                            <span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 inline-flex items-center gap-1.5">
+                                <i class="fa-solid fa-circle-check text-emerald-400"></i> Completed
+                            </span>
+                        `;
+                    } else {
+                        statusMarkup = `
+                            <span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 inline-flex items-center gap-1.5">
+                                <i class="fa-solid fa-circle-xmark"></i> Failed
+                            </span>
+                        `;
+                    }
+
+                    // UTR & TxHash Markup
+                    const utrDisplay = isProcessing
+                        ? `<span class="text-amber-400/80 font-mono text-[11px]"><i class="fa-solid fa-clock mr-1"></i>Processing...</span>`
+                        : `<span class="text-slate-300 font-mono text-[11px]">${tx.utr || 'Confirmed'}</span>`;
+
+                    const txHashDisplay = isProcessing
+                        ? `<span class="text-amber-400/80 font-mono text-[11px] flex items-center gap-1"><i class="fa-solid fa-arrows-rotate animate-spin text-[9px]"></i> Dispatched on Chain...</span>`
+                        : (tx.txHash 
+                            ? `<a href="https://bscscan.com/tx/${tx.txHash}" target="_blank" class="text-cyan-400 hover:text-cyan-300 font-mono text-[11px] flex items-center gap-1 hover:underline"><i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i> ${tx.txHash.substring(0, 10)}...</a>`
+                            : `-`);
 
                     return `
                         <tr class="hover:bg-slate-900/60 transition-colors">
@@ -984,15 +1057,9 @@ async function loadUserTransactionLedger() {
                             <td class="py-3 px-4">${typeBadge}</td>
                             <td class="py-3 px-4 font-bold text-white">₹${parseFloat(tx.amount).toLocaleString('en-IN')}</td>
                             <td class="py-3 px-4 font-bold text-emerald-400">${tx.usdtAmount} USDT</td>
-                            <td class="py-3 px-4 text-slate-300 font-mono text-[11px]">${tx.utr || 'Pending'}</td>
-                            <td class="py-3 px-4">
-                                <span class="px-2 py-0.5 rounded text-[10px] border font-bold ${badgeClass}">
-                                    ${tx.status}
-                                </span>
-                            </td>
-                            <td class="py-3 px-4 font-mono text-[11px] text-cyan-400">
-                                ${tx.txHash ? tx.txHash.substring(0, 10) + '...' : '-'}
-                            </td>
+                            <td class="py-3 px-4">${utrDisplay}</td>
+                            <td class="py-3 px-4">${statusMarkup}</td>
+                            <td class="py-3 px-4">${txHashDisplay}</td>
                         </tr>
                     `;
                 }).join('');
@@ -1002,7 +1069,7 @@ async function loadUserTransactionLedger() {
                         <td colspan="7" class="py-8 text-center text-slate-500 font-sans">
                             <i class="fa-solid fa-receipt text-slate-600 text-2xl block mb-2"></i>
                             No transaction history found for <span class="text-slate-400 font-mono">${currentUser.email}</span>.
-                            Make a Buy or Withdraw request to see your ledger logs.
+                            Make a Deposit or Convert request to see your ledger logs.
                         </td>
                     </tr>
                 `;
