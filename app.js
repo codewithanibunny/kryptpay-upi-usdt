@@ -150,61 +150,56 @@ function switchDashboardTab(tabName) {
 
 /* ================= GOOGLE IDENTITY OAUTH INTEGRATION ================= */
 
+const CLIENT_ID = '459964446959-9se2u9p8mahbili06u56otgvqafcieem.apps.googleusercontent.com';
 let googleTokenClient = null;
 
-async function initGoogleAuth() {
-    try {
-        const res = await fetch('/api/config');
-        if (res.ok) {
-            const config = await res.json();
-            if (config.googleClientId) {
-                window.GOOGLE_CLIENT_ID = config.googleClientId;
-            }
-        }
-    } catch (e) {
-        console.log('Config fetch note:', e);
-    }
+function initGoogleAuth() {
+    window.GOOGLE_CLIENT_ID = CLIENT_ID;
 
-    if (window.GOOGLE_CLIENT_ID && window.google && window.google.accounts) {
-        window.google.accounts.id.initialize({
-            client_id: window.GOOGLE_CLIENT_ID,
-            callback: handleGoogleCredentialResponse
-        });
+    if (window.google && window.google.accounts) {
+        try {
+            window.google.accounts.id.initialize({
+                client_id: CLIENT_ID,
+                callback: handleGoogleCredentialResponse
+            });
+        } catch (e) {}
 
         if (window.google.accounts.oauth2) {
-            googleTokenClient = window.google.accounts.oauth2.initTokenClient({
-                client_id: window.GOOGLE_CLIENT_ID,
-                scope: 'email profile openid',
-                callback: async (tokenResponse) => {
-                    if (tokenResponse && tokenResponse.access_token) {
-                        try {
-                            const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                                headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-                            });
-                            const profile = await userInfoRes.json();
-                            if (profile && profile.email) {
-                                const res = await fetch('/api/auth/google', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        email: profile.email,
-                                        name: profile.name || profile.given_name,
-                                        picture: profile.picture
-                                    })
+            try {
+                googleTokenClient = window.google.accounts.oauth2.initTokenClient({
+                    client_id: CLIENT_ID,
+                    scope: 'email profile openid',
+                    callback: async (tokenResponse) => {
+                        if (tokenResponse && tokenResponse.access_token) {
+                            try {
+                                const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                                    headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
                                 });
-                                const data = await res.json();
-                                if (data.status === 1) {
-                                    currentUser = data.user;
-                                    localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
-                                    applyUserSession();
+                                const profile = await userInfoRes.json();
+                                if (profile && profile.email) {
+                                    const res = await fetch('/api/auth/google', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            email: profile.email,
+                                            name: profile.name || profile.given_name,
+                                            picture: profile.picture
+                                        })
+                                    });
+                                    const data = await res.json();
+                                    if (data.status === 1) {
+                                        currentUser = data.user;
+                                        localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+                                        applyUserSession();
+                                    }
                                 }
+                            } catch (err) {
+                                console.error('Error fetching Google user profile:', err);
                             }
-                        } catch (err) {
-                            console.error('Error fetching Google user profile:', err);
                         }
                     }
-                }
-            });
+                });
+            } catch (e) {}
         }
     }
 }
@@ -249,36 +244,22 @@ async function handleGoogleCredentialResponse(response) {
     }
 }
 
-function openGoogleAuthModal() {
-    const modal = document.getElementById('google-auth-modal');
-    if (modal) modal.classList.remove('hidden');
-}
-
-function closeGoogleAuthModal() {
-    const modal = document.getElementById('google-auth-modal');
-    if (modal) modal.classList.add('hidden');
-}
-
 async function promptGoogleSignIn() {
     if (googleTokenClient) {
         googleTokenClient.requestAccessToken();
         return;
     }
 
-    if (window.GOOGLE_CLIENT_ID && window.google && window.google.accounts && window.google.accounts.id) {
+    if (window.google && window.google.accounts && window.google.accounts.id) {
         try {
-            window.google.accounts.id.prompt((notification) => {
-                if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-                    openGoogleAuthPopup();
-                }
-            });
+            window.google.accounts.id.prompt();
             return;
-        } catch (e) {
-            console.log('GSI fallback:', e);
-        }
+        } catch (e) {}
     }
 
-    openGoogleAuthPopup();
+    // Direct official Google OAuth 2.0 Popup Window URL
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(CLIENT_ID)}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token&scope=${encodeURIComponent('email profile openid')}`;
+    window.open(authUrl, 'GoogleOAuthPopup', 'width=520,height=650,left=450,top=100');
 }
 
 function openGoogleAuthPopup() {
