@@ -142,12 +142,62 @@ function switchDashboardTab(tabName) {
 
 /* ================= GOOGLE IDENTITY OAUTH INTEGRATION ================= */
 
-function initGoogleAuth() {
+let googleTokenClient = null;
+
+async function initGoogleAuth() {
+    try {
+        const res = await fetch('/api/config');
+        if (res.ok) {
+            const config = await res.json();
+            if (config.googleClientId) {
+                window.GOOGLE_CLIENT_ID = config.googleClientId;
+            }
+        }
+    } catch (e) {
+        console.log('Config fetch note:', e);
+    }
+
     if (window.GOOGLE_CLIENT_ID && window.google && window.google.accounts) {
         window.google.accounts.id.initialize({
             client_id: window.GOOGLE_CLIENT_ID,
             callback: handleGoogleCredentialResponse
         });
+
+        if (window.google.accounts.oauth2) {
+            googleTokenClient = window.google.accounts.oauth2.initTokenClient({
+                client_id: window.GOOGLE_CLIENT_ID,
+                scope: 'email profile openid',
+                callback: async (tokenResponse) => {
+                    if (tokenResponse && tokenResponse.access_token) {
+                        try {
+                            const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                                headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+                            });
+                            const profile = await userInfoRes.json();
+                            if (profile && profile.email) {
+                                const res = await fetch('/api/auth/google', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        email: profile.email,
+                                        name: profile.name || profile.given_name,
+                                        picture: profile.picture
+                                    })
+                                });
+                                const data = await res.json();
+                                if (data.status === 1) {
+                                    currentUser = data.user;
+                                    localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+                                    applyUserSession();
+                                }
+                            }
+                        } catch (err) {
+                            console.error('Error fetching Google user profile:', err);
+                        }
+                    }
+                }
+            });
+        }
     }
 }
 
@@ -202,6 +252,11 @@ function closeGoogleAuthModal() {
 }
 
 async function promptGoogleSignIn() {
+    if (googleTokenClient) {
+        googleTokenClient.requestAccessToken();
+        return;
+    }
+
     if (window.GOOGLE_CLIENT_ID && window.google && window.google.accounts && window.google.accounts.id) {
         try {
             window.google.accounts.id.prompt((notification) => {
@@ -211,7 +266,7 @@ async function promptGoogleSignIn() {
             });
             return;
         } catch (e) {
-            console.log('GSI fallback to Google Auth Popup window:', e);
+            console.log('GSI fallback:', e);
         }
     }
 

@@ -15,6 +15,15 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, '/')));
 
+// Google OAuth Client ID Configuration
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+
+app.get('/api/config', (req, res) => {
+    res.json({
+        googleClientId: GOOGLE_CLIENT_ID
+    });
+});
+
 // MPXPays Merchant Configuration Credentials & Fee Rates
 const MPX_CONFIG = {
     merchantId: process.env.MPX_MERCHANT_ID || '953045',
