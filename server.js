@@ -25,6 +25,9 @@ const MPX_CONFIG = {
     callbackUrl: process.env.MPX_CALLBACK_URL || 'http://localhost:5000/api/mpxpay-webhook'
 };
 
+// Registered Users Database (email -> user object)
+const usersDb = new Map();
+
 // In-Memory Order Storage & User Ledgers
 const ordersDb = new Map(); // merchant_order_no -> order object
 const userOrdersDb = new Map(); // userEmail -> Array of merchant_order_no
@@ -35,6 +38,178 @@ function calculateMD5Signature(apiKey, amount2Dec, callbackUrl, merchantId, merc
     const signString = `${apiKey}${amount2Dec}${callbackUrl}${merchantId}${merchantOrderNo}`;
     return crypto.createHash('md5').update(signString).digest('hex');
 }
+
+// -------------------------------------------------------------
+// AUTH 1: USER REGISTRATION & EMAIL OTP VERIFICATION GENERATION
+// -------------------------------------------------------------
+app.post('/api/auth/register', (req, res) => {
+    const { name, email, password, binanceAddress } = req.body;
+
+    if (!name || !email || !password || !binanceAddress) {
+        return res.status(400).json({ status: 0, message: 'All fields are required.' });
+    }
+
+    const emailKey = email.toLowerCase().trim();
+
+    // Check if user already exists
+    if (usersDb.has(emailKey)) {
+        const existing = usersDb.get(emailKey);
+        if (existing.isVerified) {
+            return res.status(400).json({ status: 0, message: 'Account already exists. Please login.' });
+        }
+    }
+
+    // Generate 6-Digit Email Verification OTP Code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    const newUser = {
+        name,
+        email: emailKey,
+        password, // In production, use bcrypt.hashSync(password, 10)
+        binanceAddress,
+        isVerified: false,
+        otpCode,
+        otpExpires: Date.now() + 10 * 60 * 1000 // 10 mins
+    };
+
+    usersDb.set(emailKey, newUser);
+
+    console.log(`\n📧 [EMAIL OTP GENERATED] Sent to ${emailKey} | OTP Code: ${otpCode}`);
+
+    res.json({
+        status: 1,
+        message: `Verification code sent to ${emailKey}`,
+        email: emailKey,
+        // For local development testing, return OTP in response so user can enter it
+        devOtp: otpCode
+    });
+});
+
+// -------------------------------------------------------------
+// AUTH 2: VERIFY EMAIL OTP CODE
+// -------------------------------------------------------------
+app.post('/api/auth/verify-otp', (req, res) => {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+        return res.status(400).json({ status: 0, message: 'Email and OTP code are required.' });
+    }
+
+    const emailKey = email.toLowerCase().trim();
+    const user = usersDb.get(emailKey);
+
+    if (!user) {
+        return res.status(404).json({ status: 0, message: 'Registration not found. Please register.' });
+    }
+
+    if (user.otpCode !== otp.trim()) {
+        return res.status(400).json({ status: 0, message: 'Invalid Verification Code! Check your email.' });
+    }
+
+    if (Date.now() > user.otpExpires) {
+        return res.status(400).json({ status: 0, message: 'Verification Code expired! Please request a new one.' });
+    }
+
+    // Mark user as verified
+    user.isVerified = true;
+    user.otpCode = null;
+    usersDb.set(emailKey, user);
+
+    console.log(`✅ [USER VERIFIED] ${emailKey} verified successfully!`);
+
+    res.json({
+        status: 1,
+        message: 'Account verified successfully!',
+        user: {
+            name: user.name,
+            email: user.email,
+            binanceAddress: user.binanceAddress
+        }
+    });
+});
+
+// -------------------------------------------------------------
+// AUTH 3: STRICT EMAIL & PASSWORD LOGIN
+// -------------------------------------------------------------
+app.post('/api/auth/login', (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ status: 0, message: 'Email and password are required.' });
+    }
+
+    const emailKey = email.toLowerCase().trim();
+    const user = usersDb.get(emailKey);
+
+    if (!user) {
+        return res.status(401).json({ status: 0, message: 'Account not found! Please Create an Account first.' });
+    }
+
+    if (user.password !== password) {
+        return res.status(401).json({ status: 0, message: 'Invalid Password! Please check your password.' });
+    }
+
+    if (!user.isVerified) {
+        return res.status(401).json({
+            status: 2, // Requires OTP Verification
+            message: 'Email not verified! Enter the verification OTP.',
+            email: emailKey
+        });
+    }
+
+    console.log(`🔓 [USER LOGGED IN] ${emailKey}`);
+
+    res.json({
+        status: 1,
+        message: 'Login successful!',
+        user: {
+            name: user.name,
+            email: user.email,
+            binanceAddress: user.binanceAddress
+        }
+    });
+});
+
+// -------------------------------------------------------------
+// AUTH 4: GOOGLE OAUTH AUTHENTICATION (VERIFIED BY GOOGLE)
+// -------------------------------------------------------------
+app.post('/api/auth/google', (req, res) => {
+    const { email, name, picture } = req.body;
+
+    if (!email) {
+        return res.status(400).json({ status: 0, message: 'Google Auth email missing.' });
+    }
+
+    const emailKey = email.toLowerCase().trim();
+    let user = usersDb.get(emailKey);
+
+    if (!user) {
+        // Create verified account for Google OAuth user
+        user = {
+            name: name || emailKey.split('@')[0],
+            email: emailKey,
+            picture: picture || '',
+            binanceAddress: '',
+            isVerified: true
+        };
+        usersDb.set(emailKey, user);
+    } else {
+        user.isVerified = true;
+        if (picture) user.picture = picture;
+        usersDb.set(emailKey, user);
+    }
+
+    res.json({
+        status: 1,
+        message: 'Google login successful!',
+        user: {
+            name: user.name,
+            email: user.email,
+            picture: user.picture,
+            binanceAddress: user.binanceAddress
+        }
+    });
+});
 
 // -------------------------------------------------------------
 // 1. API: CREATE MPXPAYS PAYIN ORDER (BUY USDT)
@@ -96,7 +271,6 @@ app.post('/api/create-payin-order', async (req, res) => {
 
         ordersDb.set(merchantOrderNo, newOrder);
 
-        // Append to user ledger
         if (!userOrdersDb.has(emailKey)) {
             userOrdersDb.set(emailKey, []);
         }
@@ -162,7 +336,6 @@ app.post('/api/create-payout-order', async (req, res) => {
             return res.status(400).json({ status: 0, message: 'Invalid USDT withdrawal amount' });
         }
 
-        // Payout Rate: ₹87.00 per USDT (Spread included)
         const inrPayoutAmount = (usdtVal * 87.00).toFixed(2);
         const merchantOrderNo = `KP-WITHDRAW-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 

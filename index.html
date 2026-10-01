@@ -26,10 +26,6 @@
             }
         }
     </script>
-    <!-- Optional: Paste your Google Cloud Console Client ID here if available -->
-    <script>
-        window.GOOGLE_CLIENT_ID = ""; // e.g. "123456789-abc.apps.googleusercontent.com"
-    </script>
     <!-- Google Identity Services (GSI) SDK -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Google Fonts & FontAwesome -->
@@ -68,7 +64,7 @@
                     <span>Rate: <strong id="header-usdt-rate" class="text-white">1 USDT = ₹89.50</strong></span>
                 </div>
 
-                <!-- Logged In User View (Hidden when logged out) -->
+                <!-- Logged In User View -->
                 <div id="auth-nav-user" class="hidden items-center gap-3">
                     <div class="flex items-center gap-2.5 bg-slate-900 border border-slate-800 px-3.5 py-1.5 rounded-2xl">
                         <img id="user-avatar-img" src="" alt="Avatar" class="w-7 h-7 rounded-full hidden">
@@ -88,7 +84,7 @@
         </div>
     </header>
 
-    <!-- SECTION 1: AUTHENTICATION LANDING PAGE (Visible when NOT Logged In) -->
+    <!-- SECTION 1: AUTHENTICATION LANDING PAGE -->
     <section id="auth-landing-view" class="max-w-md mx-auto px-4 py-12">
         <div class="text-center mb-8">
             <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-900 border border-amber-500/30 text-xs text-amber-400 mb-3 font-semibold">
@@ -98,11 +94,11 @@
                 Welcome to <span class="bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">KryptPay</span>
             </h1>
             <p class="text-xs sm:text-sm text-slate-400 mt-2">
-                Log in or create an account to access Instant UPI & Binance USDT Liquidity
+                Log in or create a verified account to access Instant UPI & Binance USDT Liquidity
             </p>
         </div>
 
-        <!-- Auth Switcher Tabs -->
+        <!-- Auth Switcher Card -->
         <div class="glass-card rounded-3xl p-6 shadow-2xl space-y-5">
             
             <div class="flex bg-slate-900 p-1 rounded-2xl border border-slate-800">
@@ -114,6 +110,11 @@
                     class="flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-400 hover:text-white transition-all">
                     Login
                 </button>
+            </div>
+
+            <!-- Error Banner -->
+            <div id="auth-error-banner" class="hidden bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-xl p-3 font-semibold text-center">
+                Invalid credentials.
             </div>
 
             <!-- Google OAuth Sign-In Button -->
@@ -138,7 +139,7 @@
                 </div>
 
                 <div>
-                    <label class="text-xs font-semibold text-slate-400 block mb-1">Email Address</label>
+                    <label class="text-xs font-semibold text-slate-400 block mb-1">Email Address (Gmail)</label>
                     <input type="email" id="reg-email" required placeholder="name@example.com"
                         class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3.5 text-sm text-white focus:outline-none focus:border-emerald-500">
                 </div>
@@ -156,8 +157,8 @@
                     <p class="text-[10px] text-slate-500 mt-1">Starts with "0x" (Found on Binance App under BEP20 Deposit)</p>
                 </div>
 
-                <button type="submit" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-sm py-3.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all">
-                    Register & Open Dashboard
+                <button type="submit" id="reg-submit-btn" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-sm py-3.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all">
+                    Register & Send Verification Code
                 </button>
             </form>
 
@@ -175,7 +176,7 @@
                         class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3.5 text-sm text-white focus:outline-none focus:border-emerald-500">
                 </div>
 
-                <button type="submit" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-sm py-3.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all">
+                <button type="submit" id="login-submit-btn" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-sm py-3.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all">
                     Login to Dashboard
                 </button>
             </form>
@@ -186,7 +187,7 @@
     <!-- SECTION 2: MAIN DASHBOARD & LEDGER PAGE (Visible ONLY when Logged In) -->
     <main id="main-dashboard-view" class="max-w-4xl mx-auto px-4 py-8 hidden">
 
-        <!-- Top Mode Switcher Bar (Buy USDT vs Sell/Withdraw vs History) -->
+        <!-- Top Mode Switcher Bar -->
         <div class="flex justify-center mb-8">
             <div class="bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 flex gap-1 shadow-2xl max-w-md w-full">
                 <button type="button" onclick="switchDashboardTab('buy')" id="dash-tab-buy"
@@ -438,6 +439,40 @@
         </div>
 
     </main>
+
+    <!-- EMAIL OTP VERIFICATION MODAL -->
+    <div id="otp-verification-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-card rounded-3xl max-w-md w-full p-6 sm:p-8 border border-emerald-500/40 shadow-2xl text-center space-y-4">
+            <div class="w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto text-2xl border border-emerald-500/40">
+                <i class="fa-solid fa-envelope-circle-check"></i>
+            </div>
+
+            <h3 class="font-serif font-bold text-2xl text-white">Email Verification</h3>
+            <p class="text-xs text-slate-300">
+                We sent a 6-digit Verification Code to <strong id="otp-target-email" class="text-emerald-400 font-mono">user@example.com</strong>.
+            </p>
+
+            <form onsubmit="handleOtpVerification(event)" class="space-y-4">
+                <div class="relative max-w-xs mx-auto">
+                    <input type="text" id="otp-input" maxlength="6" required placeholder="893201"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 text-center font-mono text-2xl font-bold tracking-widest text-emerald-400 focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div id="otp-dev-hint" class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-2.5 text-xs text-emerald-300 hidden">
+                    DEV CODE: <strong id="dev-otp-code" class="font-mono">893201</strong>
+                </div>
+
+                <button type="submit" id="otp-submit-btn"
+                    class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 text-slate-950 font-extrabold text-sm py-3.5 rounded-xl transition-all">
+                    Verify Code & Activate Account
+                </button>
+            </form>
+
+            <button onclick="closeOtpModal()" class="text-xs text-slate-500 hover:text-slate-300">
+                Cancel / Back
+            </button>
+        </div>
+    </div>
 
     <!-- SUCCESS ORDER MODAL -->
     <div id="success-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">

@@ -3,6 +3,7 @@ let usdtRate = 89.50;
 let usdtPayoutRate = 87.00;
 let currentUser = null;
 let currentPollInterval = null;
+let pendingVerificationEmail = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     fetchLiveRate();
@@ -68,11 +69,11 @@ function applyUserSession() {
         validateAddress();
     }
 
-    // Load User's Private Transaction History
     loadUserTransactionLedger();
 }
 
 function switchAuthTab(tab) {
+    hideAuthError();
     const loginBtn = document.getElementById('tab-login-btn');
     const regBtn = document.getElementById('tab-register-btn');
     const loginForm = document.getElementById('auth-login-form');
@@ -91,6 +92,21 @@ function switchAuthTab(tab) {
     }
 }
 
+function showAuthError(msg) {
+    const banner = document.getElementById('auth-error-banner');
+    if (banner) {
+        banner.innerText = msg;
+        banner.classList.remove('hidden');
+    }
+}
+
+function hideAuthError() {
+    const banner = document.getElementById('auth-error-banner');
+    if (banner) {
+        banner.classList.add('hidden');
+    }
+}
+
 // Switch Dashboard View Tabs (Buy vs Withdraw vs History)
 function switchDashboardTab(tabName) {
     const buyBtn = document.getElementById('dash-tab-buy');
@@ -101,12 +117,10 @@ function switchDashboardTab(tabName) {
     const withdrawContent = document.getElementById('dash-content-withdraw');
     const historyContent = document.getElementById('dash-content-history');
 
-    // Reset buttons
     buyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
     withdrawBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
     historyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
 
-    // Hide contents
     buyContent.classList.add('hidden');
     withdrawContent.classList.add('hidden');
     historyContent.classList.add('hidden');
@@ -148,23 +162,34 @@ function parseJwt(token) {
     }
 }
 
-function handleGoogleCredentialResponse(response) {
+async function handleGoogleCredentialResponse(response) {
     if (response && response.credential) {
         const payload = parseJwt(response.credential);
         if (payload) {
-            currentUser = {
-                name: payload.name || payload.given_name || 'Google User',
-                email: payload.email,
-                picture: payload.picture || 'https://lh3.googleusercontent.com/a/default-user=s96-c',
-                binanceAddress: currentUser ? currentUser.binanceAddress : ''
-            };
-            localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
-            applyUserSession();
+            try {
+                const res = await fetch('/api/auth/google', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: payload.email,
+                        name: payload.name || payload.given_name,
+                        picture: payload.picture
+                    })
+                });
+                const data = await res.json();
+                if (data.status === 1) {
+                    currentUser = data.user;
+                    localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+                    applyUserSession();
+                }
+            } catch (e) {
+                console.error('Google auth server error:', e);
+            }
         }
     }
 }
 
-function promptGoogleSignIn() {
+async function promptGoogleSignIn() {
     if (window.GOOGLE_CLIENT_ID && window.google && window.google.accounts && window.google.accounts.id) {
         window.google.accounts.id.prompt();
         return;
@@ -175,64 +200,176 @@ function promptGoogleSignIn() {
         const userName = userEmail.split('@')[0];
         const formattedName = userName.charAt(0).toUpperCase() + userName.slice(1);
         
-        currentUser = {
-            name: formattedName,
-            email: userEmail,
-            picture: 'https://lh3.googleusercontent.com/a/default-user=s96-c',
-            binanceAddress: ''
-        };
-        localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
-        applyUserSession();
+        try {
+            const res = await fetch('/api/auth/google', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: userEmail,
+                    name: formattedName,
+                    picture: 'https://lh3.googleusercontent.com/a/default-user=s96-c'
+                })
+            });
+            const data = await res.json();
+            if (data.status === 1) {
+                currentUser = data.user;
+                localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+                applyUserSession();
+            }
+        } catch (e) {
+            console.error('Google sign in error', e);
+        }
     }
 }
 
-/* ================= EMAIL AUTHENTICATION HANDLERS ================= */
+/* ================= STRICT EMAIL & OTP AUTHENTICATION ================= */
 
-function handleEmailLogin(e) {
+// 1. REGISTRATION SUBMIT -> GENERATE EMAIL OTP
+async function handleRegistration(e) {
     e.preventDefault();
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
+    hideAuthError();
 
-    if (!email || !password) {
-        alert('Please fill in email and password.');
-        return;
-    }
-    
-    currentUser = {
-        name: email.split('@')[0],
-        email: email,
-        binanceAddress: ''
-    };
-    
-    localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
-    applyUserSession();
-}
-
-function handleRegistration(e) {
-    e.preventDefault();
     const name = document.getElementById('reg-name').value.trim();
     const email = document.getElementById('reg-email').value.trim();
     const password = document.getElementById('reg-password').value;
     const binanceAddress = document.getElementById('reg-binance-address').value.trim();
 
-    if (!name || !email || !password) {
-        alert('Please fill in all required fields.');
+    if (!name || !email || !password || !binanceAddress) {
+        showAuthError('Please fill in all registration fields.');
         return;
     }
 
     if (!/^0x[a-fA-F0-9]{40}$/.test(binanceAddress)) {
-        alert('Please enter a valid 0x... BEP20 Binance Address');
+        showAuthError('Please enter a valid 0x... BEP20 Binance Address');
         return;
     }
 
-    currentUser = {
-        name: name,
-        email: email,
-        binanceAddress: binanceAddress
-    };
+    const regBtn = document.getElementById('reg-submit-btn');
+    regBtn.disabled = true;
+    regBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Generating Verification Code...`;
 
-    localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
-    applyUserSession();
+    try {
+        const res = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password, binanceAddress })
+        });
+
+        const data = await res.json();
+        regBtn.disabled = false;
+        regBtn.innerHTML = `Register Account & Send Verification Code`;
+
+        if (data.status === 1) {
+            pendingVerificationEmail = data.email;
+            document.getElementById('otp-target-email').innerText = data.email;
+            
+            if (data.devOtp) {
+                document.getElementById('dev-otp-code').innerText = data.devOtp;
+                document.getElementById('otp-dev-hint').classList.remove('hidden');
+            }
+
+            document.getElementById('otp-verification-modal').classList.remove('hidden');
+        } else {
+            showAuthError(data.message || 'Registration failed.');
+        }
+    } catch (err) {
+        regBtn.disabled = false;
+        regBtn.innerHTML = `Register Account & Send Verification Code`;
+        showAuthError('Server Connection Error.');
+    }
+}
+
+// 2. VERIFY EMAIL OTP CODE
+async function handleOtpVerification(e) {
+    e.preventDefault();
+    const otp = document.getElementById('otp-input').value.trim();
+
+    if (!otp || otp.length < 6) {
+        alert('Please enter 6-digit OTP verification code.');
+        return;
+    }
+
+    const otpBtn = document.getElementById('otp-submit-btn');
+    otpBtn.disabled = true;
+    otpBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Verifying Code...`;
+
+    try {
+        const res = await fetch('/api/auth/verify-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: pendingVerificationEmail, otp })
+        });
+
+        const data = await res.json();
+        otpBtn.disabled = false;
+        otpBtn.innerHTML = `Verify Code & Activate Account`;
+
+        if (data.status === 1 && data.user) {
+            currentUser = data.user;
+            localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+            closeOtpModal();
+            applyUserSession();
+            alert('🎉 Email Verified Successfully! Account Activated.');
+        } else {
+            alert('Verification Error: ' + data.message);
+        }
+    } catch (err) {
+        otpBtn.disabled = false;
+        otpBtn.innerHTML = `Verify Code & Activate Account`;
+        alert('Connection error during verification.');
+    }
+}
+
+function closeOtpModal() {
+    document.getElementById('otp-verification-modal').classList.add('hidden');
+    document.getElementById('otp-input').value = '';
+}
+
+// 3. STRICT EMAIL & PASSWORD LOGIN
+async function handleEmailLogin(e) {
+    e.preventDefault();
+    hideAuthError();
+
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+
+    if (!email || !password) {
+        showAuthError('Please enter email and password.');
+        return;
+    }
+
+    const loginBtn = document.getElementById('login-submit-btn');
+    loginBtn.disabled = true;
+    loginBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Verifying Credentials...`;
+
+    try {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = `Login to Dashboard`;
+
+        if (data.status === 1 && data.user) {
+            currentUser = data.user;
+            localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+            applyUserSession();
+        } else if (data.status === 2) {
+            // Pending OTP Verification
+            pendingVerificationEmail = data.email;
+            document.getElementById('otp-target-email').innerText = data.email;
+            document.getElementById('otp-verification-modal').classList.remove('hidden');
+        } else {
+            showAuthError(data.message || 'Invalid Credentials! Access Denied.');
+        }
+    } catch (err) {
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = `Login to Dashboard`;
+        showAuthError('Server Connection Error.');
+    }
 }
 
 function logoutUser() {
