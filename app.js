@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('message', (event) => {
         if (event.data && event.data.type === 'GOOGLE_AUTH_SUCCESS') {
             currentUser = event.data.user;
-            localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+            localStorage.setItem('nexapay_user', JSON.stringify(currentUser));
             closeGoogleAuthModal();
             applyUserSession();
         }
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Check saved user session in LocalStorage
 function checkSavedSession() {
-    const saved = localStorage.getItem('kryptpay_user');
+    const saved = localStorage.getItem('nexapay_user') || localStorage.getItem('kryptpay_user');
     if (saved) {
         try {
             currentUser = JSON.parse(saved);

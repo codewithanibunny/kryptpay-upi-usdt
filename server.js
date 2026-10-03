@@ -202,11 +202,11 @@ async function sendOtpEmail(toEmail, otpCode, type = 'verification') {
     if (smtpUser && smtpPass) {
         const isReset = type === 'reset';
         const subject = isReset 
-            ? `🔐 ${otpCode} is your KryptPay Password Reset Code`
-            : `🔑 ${otpCode} is your KryptPay Verification Code`;
-        const title = isReset ? `Password Reset Request` : `Welcome to KryptPay`;
+            ? `🔐 ${otpCode} is your NexaPay Password Reset Code`
+            : `🔑 ${otpCode} is your NexaPay Verification Code`;
+        const title = isReset ? `Password Reset Request` : `Welcome to NexaPay`;
         const text = isReset 
-            ? `Use the 6-digit code below to reset your KryptPay account password:`
+            ? `Use the 6-digit code below to reset your NexaPay account password:`
             : `Welcome! Use the 6-digit code below to verify your email address:`;
 
         try {
@@ -219,12 +219,12 @@ async function sendOtpEmail(toEmail, otpCode, type = 'verification') {
             });
 
             const mailOptions = {
-                from: `"KryptPay Security" <${smtpUser}>`,
+                from: `"NexaPay Security" <${smtpUser}>`,
                 to: toEmail,
                 subject: subject,
                 html: `
                     <div style="font-family: Arial, sans-serif; background-color: #06090E; color: #ffffff; padding: 30px; border-radius: 16px; max-width: 500px; margin: 0 auto;">
-                        <h2 style="color: #10B981; margin-top: 0;">KryptPay Security</h2>
+                        <h2 style="color: #10B981; margin-top: 0;">NexaPay Security</h2>
                         <h3 style="color: #F59E0B; margin-top: 0;">${title}</h3>
                         <p style="color: #94A3B8; font-size: 14px;">${text}</p>
                         <div style="background-color: #0F172A; border: 1px solid #1E293B; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">

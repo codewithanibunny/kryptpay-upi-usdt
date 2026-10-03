@@ -1,6 +1,6 @@
-# 🚀 KryptPay Production VPS Hosting & Deployment Guide
+# 🚀 NexaPay Production VPS Hosting & Deployment Guide
 
-This guide details how to deploy the **KryptPay Executive Platform** on any **Ubuntu / Debian VPS** (Hostinger, DigitalOcean, AWS, Hetzner, Vultr, etc.) with custom domain, SSL (HTTPS), Nginx reverse proxy, and PM2 24/7 background manager.
+This guide details how to deploy the **NexaPay Executive Platform** on any **Ubuntu / Debian VPS** (Hostinger, DigitalOcean, AWS, Hetzner, Vultr, etc.) with custom domain, SSL (HTTPS), Nginx reverse proxy, and PM2 24/7 background manager.
 
 ---
 
