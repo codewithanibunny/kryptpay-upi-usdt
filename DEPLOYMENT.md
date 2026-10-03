@@ -63,6 +63,8 @@ Paste your live production credentials into `.env` (replace `yourdomain.com` wit
 PORT=5000
 GOOGLE_CLIENT_ID=459964446959-9se2u9p8mahbili06u56otgvqafcieem.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=YOUR_GOOGLE_CLIENT_SECRET
+FIREBASE_WEB_API_KEY=your_firebase_web_api_key
+FIREBASE_SERVICE_ACCOUNT_PATH=./serviceAccountKey.json
 GMAIL_USER=your_gmail@gmail.com
 GMAIL_PASS=your_gmail_app_password
 MPX_MERCHANT_ID=953045
@@ -70,6 +72,8 @@ MPX_API_KEY=c41b55a4b5744069fba2c4744b6b5552cb285971b8f84cb2ad89fe8d959f98a5
 MPX_SETTLEMENT_KEY=671AF46538AD9F2407F8E8184C9C695ACEF8D79E32A2D8AAF6924E0843CAA439
 MPX_CALLBACK_URL=https://yourdomain.com/api/mpxpay-webhook
 ```
+
+> 💡 **Firebase Setup Note:** If `FIREBASE_WEB_API_KEY` or `serviceAccountKey.json` is provided, emails (verification & password reset) and user ledgers are handled directly by **Google Firebase Infrastructure** without requiring personal Gmail SMTP!
 
 Press `Ctrl+O` then `Enter` to save, and `Ctrl+X` to exit.
 

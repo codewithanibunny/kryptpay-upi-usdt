@@ -63,22 +63,28 @@ const userOrdersDb = new Map(); // userEmail -> Array of merchant_order_no
 const DB_FILE_PATH = path.join(__dirname, 'database.json');
 
 // -------------------------------------------------------------
-// FIREBASE CLOUD DATABASE INTEGRATION (Firestore Cloud Sync)
+// FIREBASE CLOUD DATABASE & AUTH INTEGRATION (Firestore & Auth Sync)
 // -------------------------------------------------------------
 let firebaseDb = null;
+let firebaseAuth = null;
+const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY || '';
+
 try {
     const firebaseAdmin = require('firebase-admin');
     const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || path.join(__dirname, 'serviceAccountKey.json');
     
     if (fs.existsSync(serviceAccountPath)) {
         const serviceAccount = require(serviceAccountPath);
-        firebaseAdmin.initializeApp({
-            credential: firebaseAdmin.credential.cert(serviceAccount)
-        });
+        if (!firebaseAdmin.apps.length) {
+            firebaseAdmin.initializeApp({
+                credential: firebaseAdmin.credential.cert(serviceAccount)
+            });
+        }
         firebaseDb = firebaseAdmin.firestore();
-        console.log('🔥 [FIREBASE CLOUD DB CONNECTED] Real-time Google Firebase Cloud Firestore active!');
+        firebaseAuth = firebaseAdmin.auth();
+        console.log('🔥 [FIREBASE CLOUD DB & AUTH CONNECTED] Real-time Google Firebase Cloud Firestore & Auth active!');
     } else {
-        console.log('ℹ️ Firebase serviceAccountKey.json not detected. Using persistent database.json local storage.');
+        console.log('ℹ️ Firebase serviceAccountKey.json not detected. Local persistent storage (database.json) active.');
     }
 } catch (fbErr) {
     console.log('ℹ️ Firebase Cloud Sync info:', fbErr.message);
@@ -160,53 +166,86 @@ async function sendOtpEmail(toEmail, otpCode, type = 'verification') {
     const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || '';
     const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_PASS || '';
 
-    if (!smtpUser || !smtpPass) {
-        console.log(`\n📧 [EMAIL OTP GENERATED] Sent to ${toEmail} | (${type.toUpperCase()}) OTP Code: ${otpCode}`);
-        return false;
-    }
-
-    const isReset = type === 'reset';
-    const subject = isReset 
-        ? `🔐 ${otpCode} is your KryptPay Password Reset Code`
-        : `🔑 ${otpCode} is your KryptPay Verification Code`;
-    const title = isReset ? `Password Reset Request` : `Welcome to KryptPay`;
-    const text = isReset 
-        ? `Use the 6-digit code below to reset your KryptPay account password:`
-        : `Welcome! Use the 6-digit code below to verify your email address:`;
-
-    try {
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: smtpUser,
-                pass: smtpPass
+    // 1. Try Firebase Web Auth REST API Dispatch if FIREBASE_WEB_API_KEY is configured
+    if (FIREBASE_WEB_API_KEY) {
+        try {
+            const requestType = (type === 'reset') ? 'PASSWORD_RESET' : 'VERIFY_EMAIL';
+            const fbRes = await axios.post(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_WEB_API_KEY}`, {
+                requestType,
+                email: toEmail
+            });
+            if (fbRes.data && fbRes.data.email) {
+                console.log(`\n🔥 [FIREBASE AUTH EMAIL DISPATCHED] Official Google Firebase ${type} email dispatched to ${toEmail}!`);
+                return true;
             }
-        });
-
-        const mailOptions = {
-            from: `"KryptPay Security" <${smtpUser}>`,
-            to: toEmail,
-            subject: subject,
-            html: `
-                <div style="font-family: Arial, sans-serif; background-color: #06090E; color: #ffffff; padding: 30px; border-radius: 16px; max-width: 500px; margin: 0 auto;">
-                    <h2 style="color: #10B981; margin-top: 0;">KryptPay Security</h2>
-                    <h3 style="color: #F59E0B; margin-top: 0;">${title}</h3>
-                    <p style="color: #94A3B8; font-size: 14px;">${text}</p>
-                    <div style="background-color: #0F172A; border: 1px solid #1E293B; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">
-                        <span style="font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #10B981;">${otpCode}</span>
-                    </div>
-                    <p style="color: #64748B; font-size: 12px;">This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
-                </div>
-            `
-        };
-
-        await transporter.sendMail(mailOptions);
-        console.log(`\n✅ [REAL GMAIL SENT] Delivered 6-digit ${type} code ${otpCode} to ${toEmail}`);
-        return true;
-    } catch (err) {
-        console.error('\n⚠️ Nodemailer SMTP Error:', err.message);
-        return false;
+        } catch (fbApiErr) {
+            console.log(`ℹ️ [FIREBASE REST API DISPATCH] ${fbApiErr.response?.data?.error?.message || fbApiErr.message}`);
+        }
     }
+
+    // 2. Try Firebase Admin SDK Password Reset / Verification Link Generation
+    if (firebaseAuth) {
+        try {
+            let actionLink = '';
+            if (type === 'reset') {
+                actionLink = await firebaseAuth.generatePasswordResetLink(toEmail);
+            } else {
+                actionLink = await firebaseAuth.generateEmailVerificationLink(toEmail);
+            }
+            console.log(`\n🔥 [FIREBASE ADMIN AUTH LINK GENERATED] Action link for ${toEmail}:\n🔗 ${actionLink}`);
+        } catch (fbAdminErr) {
+            console.log(`ℹ️ [FIREBASE ADMIN AUTH] ${fbAdminErr.message}`);
+        }
+    }
+
+    // 3. Try Nodemailer Gmail SMTP if credentials exist
+    if (smtpUser && smtpPass) {
+        const isReset = type === 'reset';
+        const subject = isReset 
+            ? `🔐 ${otpCode} is your KryptPay Password Reset Code`
+            : `🔑 ${otpCode} is your KryptPay Verification Code`;
+        const title = isReset ? `Password Reset Request` : `Welcome to KryptPay`;
+        const text = isReset 
+            ? `Use the 6-digit code below to reset your KryptPay account password:`
+            : `Welcome! Use the 6-digit code below to verify your email address:`;
+
+        try {
+            const transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: {
+                    user: smtpUser,
+                    pass: smtpPass
+                }
+            });
+
+            const mailOptions = {
+                from: `"KryptPay Security" <${smtpUser}>`,
+                to: toEmail,
+                subject: subject,
+                html: `
+                    <div style="font-family: Arial, sans-serif; background-color: #06090E; color: #ffffff; padding: 30px; border-radius: 16px; max-width: 500px; margin: 0 auto;">
+                        <h2 style="color: #10B981; margin-top: 0;">KryptPay Security</h2>
+                        <h3 style="color: #F59E0B; margin-top: 0;">${title}</h3>
+                        <p style="color: #94A3B8; font-size: 14px;">${text}</p>
+                        <div style="background-color: #0F172A; border: 1px solid #1E293B; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">
+                            <span style="font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #10B981;">${otpCode}</span>
+                        </div>
+                        <p style="color: #64748B; font-size: 12px;">This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
+                    </div>
+                `
+            };
+
+            await transporter.sendMail(mailOptions);
+            console.log(`\n✅ [REAL GMAIL SENT] Delivered 6-digit ${type} code ${otpCode} to ${toEmail}`);
+            return true;
+        } catch (err) {
+            console.error('\n⚠️ Nodemailer SMTP Error:', err.message);
+        }
+    }
+
+    // 4. Default Server Log fallback for OTP
+    console.log(`\n📧 [SECURITY OTP GENERATED] Target Email: ${toEmail} | Mode: (${type.toUpperCase()}) | 6-Digit Code: ${otpCode}`);
+    return false;
 }
 
 // -------------------------------------------------------------
