@@ -70,18 +70,23 @@ let firebaseAuth = null;
 const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY || '';
 
 try {
-    const firebaseAdmin = require('firebase-admin');
+    const { initializeApp, cert, getApps } = require('firebase-admin/app');
+    const { getFirestore } = require('firebase-admin/firestore');
+    const { getAuth } = require('firebase-admin/auth');
     const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || path.join(__dirname, 'serviceAccountKey.json');
     
     if (fs.existsSync(serviceAccountPath)) {
         const serviceAccount = require(serviceAccountPath);
-        if (!firebaseAdmin.apps.length) {
-            firebaseAdmin.initializeApp({
-                credential: firebaseAdmin.credential.cert(serviceAccount)
+        let fbApp;
+        if (!getApps().length) {
+            fbApp = initializeApp({
+                credential: cert(serviceAccount)
             });
+        } else {
+            fbApp = getApps()[0];
         }
-        firebaseDb = firebaseAdmin.firestore();
-        firebaseAuth = firebaseAdmin.auth();
+        firebaseDb = getFirestore(fbApp);
+        firebaseAuth = getAuth(fbApp);
         console.log('🔥 [FIREBASE CLOUD DB & AUTH CONNECTED] Real-time Google Firebase Cloud Firestore & Auth active!');
     } else {
         console.log('ℹ️ Firebase serviceAccountKey.json not detected. Local persistent storage (database.json) active.');
