@@ -59,6 +59,54 @@ const usersDb = new Map();
 const ordersDb = new Map(); // merchant_order_no -> order object
 const userOrdersDb = new Map(); // userEmail -> Array of merchant_order_no
 
+// Persistent Database Storage File Path (database.json)
+const DB_FILE_PATH = path.join(__dirname, 'database.json');
+
+function saveDatabaseToDisk() {
+    try {
+        const payload = {
+            saved_at: new Date().toISOString(),
+            users: Array.from(usersDb.entries()),
+            orders: Array.from(ordersDb.entries()),
+            userOrders: Array.from(userOrdersDb.entries())
+        };
+        fs.writeFileSync(DB_FILE_PATH, JSON.stringify(payload, null, 2), 'utf8');
+    } catch (err) {
+        console.error('⚠️ Error persisting database to disk:', err.message);
+    }
+}
+
+function loadDatabaseFromDisk() {
+    try {
+        if (fs.existsSync(DB_FILE_PATH)) {
+            const raw = fs.readFileSync(DB_FILE_PATH, 'utf8');
+            const payload = JSON.parse(raw);
+
+            if (payload.users && Array.isArray(payload.users)) {
+                usersDb.clear();
+                payload.users.forEach(([k, v]) => usersDb.set(k, v));
+            }
+            if (payload.orders && Array.isArray(payload.orders)) {
+                ordersDb.clear();
+                payload.orders.forEach(([k, v]) => ordersDb.set(k, v));
+            }
+            if (payload.userOrders && Array.isArray(payload.userOrders)) {
+                userOrdersDb.clear();
+                payload.userOrders.forEach(([k, v]) => userOrdersDb.set(k, v));
+            }
+
+            console.log(`💾 [PERSISTENT DB LOADED] Restored ${usersDb.size} Users & ${ordersDb.size} Orders from database.json!`);
+        } else {
+            console.log('ℹ️ Initialized persistent database.json storage.');
+        }
+    } catch (err) {
+        console.error('⚠️ Error loading persistent database from disk:', err.message);
+    }
+}
+
+// Load database immediately on server boot
+loadDatabaseFromDisk();
+
 // Helper: Calculate MD5 Signature as per MPXPays Specs
 function calculateMD5Signature(apiKey, amount2Dec, callbackUrl, merchantId, merchantOrderNo) {
     const signString = `${apiKey}${amount2Dec}${callbackUrl}${merchantId}${merchantOrderNo}`;
@@ -152,6 +200,7 @@ app.post('/api/auth/register', async (req, res) => {
     };
 
     usersDb.set(emailKey, newUser);
+    saveDatabaseToDisk();
     await sendOtpEmail(emailKey, otpCode, 'verification');
 
     res.json({
@@ -189,6 +238,7 @@ app.post('/api/auth/verify-otp', (req, res) => {
     user.isVerified = true;
     user.otpCode = null;
     usersDb.set(emailKey, user);
+    saveDatabaseToDisk();
 
     console.log(`✅ [USER VERIFIED] ${emailKey} verified successfully!`);
 
@@ -439,6 +489,7 @@ app.post('/api/create-payin-order', async (req, res) => {
             userOrdersDb.set(emailKey, []);
         }
         userOrdersDb.get(emailKey).unshift(merchantOrderNo);
+        saveDatabaseToDisk();
 
         try {
             const mpxResponse = await axios.post(MPX_CONFIG.payInEndpoint, payload, {
@@ -778,6 +829,7 @@ app.post('/api/admin/update-order-status', (req, res) => {
     }
 
     ordersDb.set(orderNo, order);
+    saveDatabaseToDisk();
     console.log(`👑 [ADMIN STATUS UPDATE] Order ${orderNo} status changed from ${prevStatus} ➔ ${newStatus}`);
 
     res.json({ status: 1, message: `Order ${orderNo} status updated to ${newStatus}` });
@@ -799,6 +851,7 @@ app.post('/api/admin/update-user-balance', (req, res) => {
 
     user.walletBalance = numBal;
     usersDb.set(emailKey, user);
+    saveDatabaseToDisk();
     console.log(`👑 [ADMIN BALANCE ADJUSTMENT] User ${emailKey} balance set to ₹${numBal}`);
 
     res.json({ status: 1, message: `User balance updated to ₹${numBal.toFixed(2)}` });
