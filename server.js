@@ -62,6 +62,41 @@ const userOrdersDb = new Map(); // userEmail -> Array of merchant_order_no
 // Persistent Database Storage File Path (database.json)
 const DB_FILE_PATH = path.join(__dirname, 'database.json');
 
+// -------------------------------------------------------------
+// FIREBASE CLOUD DATABASE INTEGRATION (Firestore Cloud Sync)
+// -------------------------------------------------------------
+let firebaseDb = null;
+try {
+    const firebaseAdmin = require('firebase-admin');
+    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || path.join(__dirname, 'serviceAccountKey.json');
+    
+    if (fs.existsSync(serviceAccountPath)) {
+        const serviceAccount = require(serviceAccountPath);
+        firebaseAdmin.initializeApp({
+            credential: firebaseAdmin.credential.cert(serviceAccount)
+        });
+        firebaseDb = firebaseAdmin.firestore();
+        console.log('🔥 [FIREBASE CLOUD DB CONNECTED] Real-time Google Firebase Cloud Firestore active!');
+    } else {
+        console.log('ℹ️ Firebase serviceAccountKey.json not detected. Using persistent database.json local storage.');
+    }
+} catch (fbErr) {
+    console.log('ℹ️ Firebase Cloud Sync info:', fbErr.message);
+}
+
+async function syncToFirebase(type, key, data) {
+    if (!firebaseDb) return;
+    try {
+        if (type === 'user') {
+            await firebaseDb.collection('users').doc(key.replace(/[^a-zA-Z0-9]/g, '_')).set(data, { merge: true });
+        } else if (type === 'order') {
+            await firebaseDb.collection('orders').doc(key.replace(/[^a-zA-Z0-9]/g, '_')).set(data, { merge: true });
+        }
+    } catch (e) {
+        console.error('Firebase Cloud sync error:', e.message);
+    }
+}
+
 function saveDatabaseToDisk() {
     try {
         const payload = {
@@ -71,6 +106,12 @@ function saveDatabaseToDisk() {
             userOrders: Array.from(userOrdersDb.entries())
         };
         fs.writeFileSync(DB_FILE_PATH, JSON.stringify(payload, null, 2), 'utf8');
+
+        // Cloud Firebase Background Sync
+        if (firebaseDb) {
+            payload.users.forEach(([k, v]) => syncToFirebase('user', k, v));
+            payload.orders.forEach(([k, v]) => syncToFirebase('order', k, v));
+        }
     } catch (err) {
         console.error('⚠️ Error persisting database to disk:', err.message);
     }
