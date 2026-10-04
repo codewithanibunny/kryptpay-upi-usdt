@@ -167,43 +167,39 @@ function calculateMD5Signature(apiKey, amount2Dec, callbackUrl, merchantId, merc
 
 const nodemailer = require('nodemailer');
 
-async function sendOtpEmail(toEmail, otpCode, type = 'verification') {
+async function syncUserToFirebaseAuth(email, password, name) {
+    if (!firebaseAuth) return null;
+    try {
+        let userRecord = null;
+        try {
+            userRecord = await firebaseAuth.getUserByEmail(email);
+        } catch (err) {
+            if (err.code === 'auth/user-not-found') {
+                userRecord = await firebaseAuth.createUser({
+                    email: email,
+                    password: password || 'NexaPayPass123!',
+                    displayName: name || email.split('@')[0]
+                });
+                console.log(`🔥 [FIREBASE AUTH USER CREATED] ${email}`);
+            }
+        }
+        return userRecord;
+    } catch (e) {
+        console.log(`ℹ️ Firebase Auth user sync note: ${e.message}`);
+        return null;
+    }
+}
+
+async function sendOtpEmail(toEmail, otpCode, type = 'verification', password = '', name = '') {
     const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || '';
     const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_PASS || '';
 
-    // 1. Try Firebase Web Auth REST API Dispatch if FIREBASE_WEB_API_KEY is configured
-    if (FIREBASE_WEB_API_KEY) {
-        try {
-            const requestType = (type === 'reset') ? 'PASSWORD_RESET' : 'VERIFY_EMAIL';
-            const fbRes = await axios.post(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_WEB_API_KEY}`, {
-                requestType,
-                email: toEmail
-            });
-            if (fbRes.data && fbRes.data.email) {
-                console.log(`\n🔥 [FIREBASE AUTH EMAIL DISPATCHED] Official Google Firebase ${type} email dispatched to ${toEmail}!`);
-                return true;
-            }
-        } catch (fbApiErr) {
-            console.log(`ℹ️ [FIREBASE REST API DISPATCH] ${fbApiErr.response?.data?.error?.message || fbApiErr.message}`);
-        }
-    }
-
-    // 2. Try Firebase Admin SDK Password Reset / Verification Link Generation
+    // 1. Ensure user exists in Firebase Auth if firebaseAuth is active
     if (firebaseAuth) {
-        try {
-            let actionLink = '';
-            if (type === 'reset') {
-                actionLink = await firebaseAuth.generatePasswordResetLink(toEmail);
-            } else {
-                actionLink = await firebaseAuth.generateEmailVerificationLink(toEmail);
-            }
-            console.log(`\n🔥 [FIREBASE ADMIN AUTH LINK GENERATED] Action link for ${toEmail}:\n🔗 ${actionLink}`);
-        } catch (fbAdminErr) {
-            console.log(`ℹ️ [FIREBASE ADMIN AUTH] ${fbAdminErr.message}`);
-        }
+        await syncUserToFirebaseAuth(toEmail, password, name);
     }
 
-    // 3. Try Nodemailer Gmail SMTP if credentials exist
+    // 2. Try Nodemailer Gmail SMTP if credentials exist in .env
     if (smtpUser && smtpPass) {
         const isReset = type === 'reset';
         const subject = isReset 
@@ -248,7 +244,39 @@ async function sendOtpEmail(toEmail, otpCode, type = 'verification') {
         }
     }
 
-    // 4. Default Server Log fallback for OTP
+    // 3. Try Firebase Web Auth REST API Password Reset Email Dispatch (Google sends direct email to inbox!)
+    if (FIREBASE_WEB_API_KEY) {
+        try {
+            const fbRes = await axios.post(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_WEB_API_KEY}`, {
+                requestType: "PASSWORD_RESET",
+                email: toEmail
+            });
+            if (fbRes.data && fbRes.data.email) {
+                console.log(`\n🔥 [FIREBASE GOOGLE EMAIL SENT] Official Google email sent directly to ${toEmail} for ${type}!`);
+                return true;
+            }
+        } catch (fbApiErr) {
+            console.log(`ℹ️ [FIREBASE REST API DISPATCH] ${fbApiErr.response?.data?.error?.message || fbApiErr.message}`);
+        }
+    }
+
+    // 4. Try Firebase Admin SDK Action Link Generation
+    if (firebaseAuth) {
+        try {
+            let actionLink = '';
+            if (type === 'reset') {
+                actionLink = await firebaseAuth.generatePasswordResetLink(toEmail);
+            } else {
+                actionLink = await firebaseAuth.generateEmailVerificationLink(toEmail);
+            }
+            console.log(`\n🔥 [FIREBASE ADMIN AUTH LINK GENERATED] Action link for ${toEmail}:\n🔗 ${actionLink}`);
+            return true;
+        } catch (fbAdminErr) {
+            console.log(`ℹ️ [FIREBASE ADMIN AUTH] ${fbAdminErr.message}`);
+        }
+    }
+
+    // 5. Default Server Log fallback for OTP
     console.log(`\n📧 [SECURITY OTP GENERATED] Target Email: ${toEmail} | Mode: (${type.toUpperCase()}) | 6-Digit Code: ${otpCode}`);
     return false;
 }
@@ -286,7 +314,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     usersDb.set(emailKey, newUser);
     saveDatabaseToDisk();
-    const emailSent = await sendOtpEmail(emailKey, otpCode, 'verification');
+    const emailSent = await sendOtpEmail(emailKey, otpCode, 'verification', password, name);
 
     res.json({
         status: 1,
