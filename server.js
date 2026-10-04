@@ -286,12 +286,15 @@ app.post('/api/auth/register', async (req, res) => {
 
     usersDb.set(emailKey, newUser);
     saveDatabaseToDisk();
-    await sendOtpEmail(emailKey, otpCode, 'verification');
+    const emailSent = await sendOtpEmail(emailKey, otpCode, 'verification');
 
     res.json({
         status: 1,
-        message: `Verification code sent to ${emailKey}`,
-        email: emailKey
+        message: emailSent 
+            ? `Verification code sent to ${emailKey}` 
+            : `Verification Code generated for ${emailKey}`,
+        email: emailKey,
+        otpCode: emailSent ? undefined : otpCode
     });
 });
 
@@ -446,14 +449,17 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     user.forgotOtpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
     usersDb.set(emailKey, user);
 
-    await sendOtpEmail(emailKey, resetOtp, 'reset');
+    const emailSent = await sendOtpEmail(emailKey, resetOtp, 'reset');
 
     console.log(`🔑 [FORGOT PASSWORD OTP GENERATED] ${emailKey} -> ${resetOtp}`);
 
     res.json({
         status: 1,
-        message: `Reset OTP sent to ${emailKey}. Please check your email inbox.`,
-        email: emailKey
+        message: emailSent 
+            ? `Reset OTP sent to ${emailKey}. Please check your email inbox.`
+            : `Reset OTP generated for ${emailKey}.`,
+        email: emailKey,
+        otpCode: emailSent ? undefined : resetOtp
     });
 });
 

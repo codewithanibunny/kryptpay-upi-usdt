@@ -379,6 +379,10 @@ async function handleRegistration(e) {
         if (data.status === 1) {
             pendingVerificationEmail = data.email;
             document.getElementById('otp-target-email').innerText = data.email;
+            if (data.otpCode) {
+                const otpInput = document.getElementById('otp-input');
+                if (otpInput) otpInput.value = data.otpCode;
+            }
             document.getElementById('otp-verification-modal').classList.remove('hidden');
         } else {
             showAuthError(data.message || 'Registration failed.');
@@ -429,6 +433,10 @@ async function handleSendForgotOtp(e) {
             document.getElementById('forgot-target-email').innerText = email;
             document.getElementById('forgot-step-1').classList.add('hidden');
             document.getElementById('forgot-step-2').classList.remove('hidden');
+            if (data.otpCode) {
+                const forgotOtpInput = document.getElementById('forgot-otp-input');
+                if (forgotOtpInput) forgotOtpInput.value = data.otpCode;
+            }
         } else {
             alert(data.message || 'Failed to send reset OTP');
         }

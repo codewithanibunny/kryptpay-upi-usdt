@@ -1,5 +1,5 @@
 {
-  "saved_at": "2026-10-03T17:40:04.426Z",
+  "saved_at": "2026-10-04T09:20:10.584Z",
   "users": [
     [
       "persistentuser@kryptpay.com",
@@ -12,6 +12,18 @@
         "otpCode": null,
         "otpExpires": 1791049788582,
         "walletBalance": 5000
+      }
+    ],
+    [
+      "anibunny2387@gmail.com",
+      {
+        "name": "Aniket Singha Roy",
+        "email": "anibunny2387@gmail.com",
+        "password": "Aniket@12",
+        "binanceAddress": "0xd50a134b9603512da74c2274fc479006e47a9957",
+        "isVerified": false,
+        "otpCode": "389477",
+        "otpExpires": 1791106210582
       }
     ]
   ],
