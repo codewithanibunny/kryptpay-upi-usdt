@@ -549,8 +549,8 @@ app.post('/api/create-payin-order', async (req, res) => {
         const userBinanceAddr = binanceAddress || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
 
         const numAmount = parseFloat(amount);
-        if (isNaN(numAmount) || numAmount <= 0) {
-            return res.status(400).json({ status: 0, message: 'Invalid payment amount' });
+        if (isNaN(numAmount) || numAmount < 500) {
+            return res.status(400).json({ status: 0, message: 'Minimum deposit amount is ₹500 INR.' });
         }
 
         const formattedAmount = numAmount.toFixed(2);
@@ -729,8 +729,12 @@ app.post('/api/wallet/convert-usdt', (req, res) => {
         }
 
         const numInr = parseFloat(inrAmount);
-        if (isNaN(numInr) || numInr <= 0) {
-            return res.status(400).json({ status: 0, message: 'Invalid INR amount.' });
+        if (isNaN(numInr) || numInr < 1000) {
+            return res.status(400).json({ status: 0, message: 'Minimum USDT conversion amount is ₹1,000 INR.' });
+        }
+
+        if (Math.round(numInr) % 100 !== 0) {
+            return res.status(400).json({ status: 0, message: 'Conversion amount must be an exact multiple of ₹100 (e.g. ₹1000, ₹1100, ₹1200).' });
         }
 
         const currentBal = user.walletBalance || 0;

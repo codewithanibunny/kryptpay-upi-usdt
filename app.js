@@ -682,7 +682,13 @@ function setConvertMaxAmount() {
     const bal = currentUser ? (currentUser.walletBalance || 0) : 0;
     const input = document.getElementById('convert-inr-amount');
     if (input) {
-        input.value = Math.floor(bal);
+        const maxMultipleOf100 = Math.floor(bal / 100) * 100;
+        if (maxMultipleOf100 < 1000) {
+            alert(`Available wallet balance (₹${bal.toFixed(2)}) is below the minimum ₹1,000 conversion requirement or cannot form a ₹100 multiple.`);
+            input.value = 1000;
+        } else {
+            input.value = maxMultipleOf100;
+        }
         calculateConvertUsdt();
     }
 }
@@ -740,8 +746,13 @@ async function submitWalletConversion() {
     const inrVal = parseFloat(inrInput ? inrInput.value : 0);
     const address = addrInput ? addrInput.value.trim() : '';
 
-    if (isNaN(inrVal) || inrVal <= 0) {
-        alert('Please enter a valid INR conversion amount.');
+    if (isNaN(inrVal) || inrVal < 1000) {
+        alert('Minimum USDT conversion amount is ₹1,000 INR.');
+        return;
+    }
+
+    if (Math.round(inrVal) % 100 !== 0) {
+        alert('Conversion amount must be in exact multiples of ₹100 (e.g. ₹1000, ₹1100, ₹1200).');
         return;
     }
 
@@ -857,8 +868,8 @@ async function initiateMPXPayInOrder() {
         return;
     }
 
-    if (inrVal < 200) {
-        alert('Minimum deposit amount is ₹200 INR.');
+    if (inrVal < 500) {
+        alert('Minimum UPI deposit amount is ₹500 INR.');
         return;
     }
 

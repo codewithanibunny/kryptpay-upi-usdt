@@ -260,11 +260,11 @@
                     <div>
                         <div class="flex justify-between text-xs text-slate-400 font-semibold mb-1.5">
                             <label>1. ENTER UPI DEPOSIT AMOUNT</label>
-                            <span>MIN: ₹200</span>
+                            <span>MIN: ₹500</span>
                         </div>
                         <div class="relative">
                             <span class="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-slate-400">₹</span>
-                            <input type="number" id="inr-amount" value="500" min="200" max="100000"
+                            <input type="number" id="inr-amount" value="500" min="500" max="100000"
                                 class="w-full bg-slate-900 border border-slate-700 rounded-2xl py-3.5 pl-10 pr-16 text-2xl font-extrabold text-white focus:outline-none focus:border-emerald-500 transition-all"
                                 placeholder="500" oninput="calculateDepositCredit()">
                             <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 bg-slate-800 px-2 py-1 rounded">INR</span>
@@ -359,13 +359,16 @@
                         </div>
                         <div class="relative">
                             <span class="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-slate-400">₹</span>
-                            <input type="number" id="convert-inr-amount" value="445" min="10" max="100000"
+                            <input type="number" id="convert-inr-amount" value="1000" min="1000" step="100" max="100000"
                                 class="w-full bg-slate-900 border border-slate-700 rounded-2xl py-3.5 pl-10 pr-24 text-2xl font-extrabold text-amber-400 focus:outline-none focus:border-amber-500 transition-all"
-                                placeholder="445" oninput="calculateConvertUsdt()">
+                                placeholder="1000" oninput="calculateConvertUsdt()">
                             <button type="button" onclick="setConvertMaxAmount()" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-500/30">
                                 MAX
                             </button>
                         </div>
+                        <p class="text-[10px] text-amber-400/90 mt-1 flex items-center gap-1">
+                            <i class="fa-solid fa-circle-info"></i> Minimum conversion: ₹1,000 • Must be in exact multiples of ₹100 (e.g. ₹1000, ₹1100, ₹1200)
+                        </p>
                     </div>
 
                     <!-- You Receive USDT Box -->
