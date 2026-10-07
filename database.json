@@ -1,5 +1,5 @@
 {
-  "saved_at": "2026-10-04T09:36:55.445Z",
+  "saved_at": "2026-10-07T15:56:12.349Z",
   "users": [
     [
       "persistentuser@kryptpay.com",
@@ -21,12 +21,38 @@
         "email": "anibunny2387@gmail.com",
         "password": "Aniket@12",
         "binanceAddress": "0xd50a134b9603512da74c2274fc479006e47a9957",
-        "isVerified": false,
+        "isVerified": true,
         "otpCode": "177278",
-        "otpExpires": 1791107215445
+        "otpExpires": 1791107215445,
+        "picture": "https://lh3.googleusercontent.com/a/ACg8ocLNxCDNo2OKnWarqc2jufLtdC9AC6s0pnFkXUyacVHXXFAtdw=s96-c"
       }
     ]
   ],
-  "orders": [],
-  "userOrders": []
+  "orders": [
+    [
+      "KP-BUY-1791388572309-3199",
+      {
+        "merchant_order_no": "KP-BUY-1791388572309-3199",
+        "type": "DEPOSIT",
+        "amount": "500.00",
+        "feeTotal": "110.00",
+        "netAmount": "390.00",
+        "usdtAmount": "0.00",
+        "binanceAddress": "0xd50a134b9603512da74c2274fc479006e47a9957",
+        "userEmail": "anibunny2387@gmail.com",
+        "status": "PENDING",
+        "utr": null,
+        "txHash": null,
+        "created_at": "2026-10-07T15:56:12.344Z"
+      }
+    ]
+  ],
+  "userOrders": [
+    [
+      "anibunny2387@gmail.com",
+      [
+        "KP-BUY-1791388572309-3199"
+      ]
+    ]
+  ]
 }
