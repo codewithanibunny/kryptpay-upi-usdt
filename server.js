@@ -244,7 +244,7 @@ async function sendOtpEmail(toEmail, otpCode, type = 'verification', password = 
         }
     }
 
-    // 3. Try Firebase Web Auth REST API Password Reset Email Dispatch (Google sends direct email to inbox!)
+    // 3. Try Firebase Web Auth REST API Password Reset Email Dispatch (Google sends direct link email)
     if (FIREBASE_WEB_API_KEY) {
         try {
             const fbRes = await axios.post(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_WEB_API_KEY}`, {
@@ -252,8 +252,7 @@ async function sendOtpEmail(toEmail, otpCode, type = 'verification', password = 
                 email: toEmail
             });
             if (fbRes.data && fbRes.data.email) {
-                console.log(`\n🔥 [FIREBASE GOOGLE EMAIL SENT] Official Google email sent directly to ${toEmail} for ${type}!`);
-                return true;
+                console.log(`\n🔥 [FIREBASE GOOGLE LINK SENT] Official Google Link email sent directly to ${toEmail} for ${type}!`);
             }
         } catch (fbApiErr) {
             console.log(`ℹ️ [FIREBASE REST API DISPATCH] ${fbApiErr.response?.data?.error?.message || fbApiErr.message}`);
@@ -270,7 +269,6 @@ async function sendOtpEmail(toEmail, otpCode, type = 'verification', password = 
                 actionLink = await firebaseAuth.generateEmailVerificationLink(toEmail);
             }
             console.log(`\n🔥 [FIREBASE ADMIN AUTH LINK GENERATED] Action link for ${toEmail}:\n🔗 ${actionLink}`);
-            return true;
         } catch (fbAdminErr) {
             console.log(`ℹ️ [FIREBASE ADMIN AUTH] ${fbAdminErr.message}`);
         }
