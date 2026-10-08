@@ -5,20 +5,20 @@ Write-Host "====================================================" -ForegroundCol
 Write-Host "🚀 Starting NexaPay Windows RDP 24/7 Server Setup..." -ForegroundColor Green
 Write-Host "====================================================" -ForegroundColor Green
 
-# 1. Check & Install Node.js if missing
+# 1. Check Node.js
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     Write-Host "📥 Node.js not detected. Downloading Node.js LTS Installer..." -ForegroundColor Yellow
     $msiUrl = "https://nodejs.org/dist/v20.18.0/node-v20.18.0-x64.msi"
     $msiPath = "$env:TEMP\node_install.msi"
     Invoke-WebRequest -Uri $msiUrl -OutFile $msiPath
     Start-Process msiexec.exe -ArgumentList "/i `"$msiPath`" /qn /norestart" -Wait
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+    $env:Path += ";C:\Program Files\nodejs\"
 }
 
 # 2. Prepare App Directory
 $appDir = "C:\NexaPay"
 if (-not (Test-Path $appDir)) {
-    New-Item -ItemType Directory -Path $appDir | Out-Null
+    New-Item -ItemType Directory -Path $appDir -Force | Out-Null
 }
 Set-Location $appDir
 
@@ -26,9 +26,14 @@ Set-Location $appDir
 Write-Host "📦 Downloading NexaPay Codebase..." -ForegroundColor Cyan
 $zipUrl = "https://github.com/codewithanibunny/kryptpay-upi-usdt/archive/refs/heads/master.zip"
 $zipPath = "$env:TEMP\nexapay.zip"
+$extractPath = "$env:TEMP\nexapay_extracted"
+
+if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+if (Test-Path $extractPath) { Remove-Item $extractPath -Recurse -Force }
+
 Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
-Expand-Archive -Path $zipPath -DestinationPath "$env:TEMP\nexapay_extracted" -Force
-Copy-Item -Path "$env:TEMP\nexapay_extracted\kryptpay-upi-usdt-master\*" -Destination $appDir -Recurse -Force
+Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+Copy-Item -Path "$extractPath\kryptpay-upi-usdt-master\*" -Destination $appDir -Recurse -Force
 
 # 4. Install Node Packages
 Write-Host "⚙️ Installing NPM Dependencies..." -ForegroundColor Cyan
