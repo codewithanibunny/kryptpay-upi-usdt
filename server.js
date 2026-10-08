@@ -430,15 +430,21 @@ app.post('/api/auth/google', (req, res) => {
             email: emailKey,
             picture: picture || '',
             binanceAddress: binanceAddress || '',
-            isVerified: true
+            isVerified: true,
+            walletBalance: 0.00
         };
         usersDb.set(emailKey, user);
     } else {
         user.isVerified = true;
         if (picture) user.picture = picture;
-        if (binanceAddress) user.binanceAddress = binanceAddress;
+        if (name && (!user.name || user.name === user.email.split('@')[0])) user.name = name;
+        if (binanceAddress && !user.binanceAddress) user.binanceAddress = binanceAddress;
         usersDb.set(emailKey, user);
     }
+
+    saveDatabaseToDisk();
+
+    console.log(`🔓 [GOOGLE AUTH LOGGED IN] ${emailKey} (Unified Account | Balance: ₹${user.walletBalance || 0.00})`);
 
     res.json({
         status: 1,
@@ -446,8 +452,8 @@ app.post('/api/auth/google', (req, res) => {
         user: {
             name: user.name,
             email: user.email,
-            picture: user.picture,
-            binanceAddress: user.binanceAddress,
+            picture: user.picture || '',
+            binanceAddress: user.binanceAddress || '',
             walletBalance: user.walletBalance || 0.00
         }
     });
