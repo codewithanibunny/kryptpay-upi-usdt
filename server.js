@@ -984,11 +984,15 @@ app.post('/api/admin/update-user-balance', (req, res) => {
     res.json({ status: 1, message: `User balance updated to ₹${numBal.toFixed(2)}` });
 });
 
-// Start Express Server
-app.listen(PORT, () => {
-    console.log(`====================================================`);
-    console.log(`👑 KryptPay Executive Server running on Port ${PORT}`);
-    console.log(`💸 Collection Fee: 20.00% + ₹10.00`);
-    console.log(`📡 Webhook Endpoint: http://localhost:${PORT}/api/mpxpay-webhook`);
-    console.log(`====================================================`);
-});
+// Export app for Vercel / Serverless deployments & start listener
+module.exports = app;
+
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => {
+        console.log(`====================================================`);
+        console.log(`👑 KryptPay Executive Server running on Port ${PORT}`);
+        console.log(`💸 Collection Fee: 20.00% + ₹10.00`);
+        console.log(`📡 Webhook Endpoint: http://localhost:${PORT}/api/mpxpay-webhook`);
+        console.log(`====================================================`);
+    });
+}
