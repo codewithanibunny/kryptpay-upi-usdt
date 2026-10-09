@@ -23,9 +23,20 @@ if (fs.existsSync(envPath)) {
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS and JSON body parser
+// Enable CORS and JSON body parser (compatible with Vercel Serverless)
 app.use(cors());
-app.use(express.json());
+
+app.use((req, res, next) => {
+    if (req.body && typeof req.body === 'object') {
+        next();
+    } else {
+        express.json()(req, res, (err) => {
+            if (err) return res.status(400).json({ status: 0, message: 'Invalid JSON request payload' });
+            next();
+        });
+    }
+});
+
 app.use(express.urlencoded({ extended: true }));
 
 // Serve static frontend files and explicit HTML routes
