@@ -54,7 +54,7 @@ const MPX_CONFIG = {
     apiKey: process.env.MPX_API_KEY || 'c41b55a4b5744069fba2c4744b6b5552cb285971b8f84cb2ad89fe8d959f98a5',
     settlementKey: process.env.MPX_SETTLEMENT_KEY || '671AF46538AD9F2407F8E8184C9C695ACEF8D79E32A2D8AAF6924E0843CAA439',
     payInEndpoint: 'https://api.mpxpayss.com/api/payIn',
-    callbackUrl: process.env.MPX_CALLBACK_URL || 'http://localhost:5000/api/mpxpay-webhook',
+    callbackUrl: process.env.MPX_CALLBACK_URL || 'https://nexapay-ashen.vercel.app/api/mpxpay-webhook',
     // Fee Rates
     collectionFeeRatePercent: 20.00, // 20%
     additionalFeeInr: 10.00         // ₹10.00
