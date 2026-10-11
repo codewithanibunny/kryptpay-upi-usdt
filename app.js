@@ -4,6 +4,7 @@ let usdtPayoutRate = 87.00;
 let currentUser = null;
 let currentPollInterval = null;
 let pendingVerificationEmail = null;
+let pendingOtpToken = '';
 
 document.addEventListener('DOMContentLoaded', () => {
     fetchLiveRate();
@@ -378,6 +379,7 @@ async function handleRegistration(e) {
 
         if (data.status === 1) {
             pendingVerificationEmail = data.email;
+            pendingOtpToken = data.otpToken || '';
             document.getElementById('otp-target-email').innerText = data.email;
             if (data.otpCode) {
                 const otpInput = document.getElementById('otp-input');
@@ -512,7 +514,7 @@ async function handleOtpVerification(e) {
         const res = await fetch('/api/auth/verify-otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: pendingVerificationEmail, otp })
+            body: JSON.stringify({ email: pendingVerificationEmail, otp, otpToken: pendingOtpToken })
         });
 
         const data = await res.json();

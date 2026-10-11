@@ -92,10 +92,20 @@ try {
     const { initializeApp, cert, getApps } = require('firebase-admin/app');
     const { getFirestore } = require('firebase-admin/firestore');
     const { getAuth } = require('firebase-admin/auth');
-    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || path.join(__dirname, 'serviceAccountKey.json');
-    
-    if (fs.existsSync(serviceAccountPath)) {
-        const serviceAccount = require(serviceAccountPath);
+    let serviceAccount = null;
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (serviceAccountJson) {
+        try {
+            serviceAccount = JSON.parse(serviceAccountJson);
+        } catch(e) {}
+    } else {
+        const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || path.join(__dirname, 'serviceAccountKey.json');
+        if (fs.existsSync(serviceAccountPath)) {
+            serviceAccount = require(serviceAccountPath);
+        }
+    }
+
+    if (serviceAccount) {
         let fbApp;
         if (!getApps().length) {
             fbApp = initializeApp({
@@ -108,7 +118,7 @@ try {
         firebaseAuth = getAuth(fbApp);
         console.log('🔥 [FIREBASE CLOUD DB & AUTH CONNECTED] Real-time Google Firebase Cloud Firestore & Auth active!');
     } else {
-        console.log('ℹ️ Firebase serviceAccountKey.json not detected. Local persistent storage (database.json) active.');
+        console.log('ℹ️ Firebase serviceAccount not detected. Local persistent storage & stateless token active.');
     }
 } catch (fbErr) {
     console.log('ℹ️ Firebase Cloud Sync info:', fbErr.message);
@@ -301,6 +311,9 @@ async function sendOtpEmail(toEmail, otpCode, type = 'verification', password = 
 // -------------------------------------------------------------
 // AUTH 1: USER REGISTRATION & EMAIL OTP VERIFICATION GENERATION
 // -------------------------------------------------------------
+// -------------------------------------------------------------
+// AUTH 1: USER REGISTRATION & EMAIL OTP VERIFICATION GENERATION
+// -------------------------------------------------------------
 app.post('/api/auth/register', async (req, res) => {
     const { name, email, password, binanceAddress } = req.body;
 
@@ -318,6 +331,13 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+
+    // Cryptographic stateless registration token (immune to serverless restarts)
+    const payloadStr = JSON.stringify({ name, email: emailKey, password, binanceAddress, otpCode, exp: expiresAt });
+    const payloadB64 = Buffer.from(payloadStr).toString('base64');
+    const signature = crypto.createHmac('sha256', MPX_CONFIG.apiKey).update(payloadB64).digest('hex');
+    const otpToken = `${payloadB64}.${signature}`;
 
     const newUser = {
         name,
@@ -326,11 +346,13 @@ app.post('/api/auth/register', async (req, res) => {
         binanceAddress,
         isVerified: false,
         otpCode,
-        otpExpires: Date.now() + 10 * 60 * 1000
+        otpExpires: expiresAt
     };
 
     usersDb.set(emailKey, newUser);
     saveDatabaseToDisk();
+    await syncToFirebase('user', emailKey, newUser);
+    
     const emailSent = await sendOtpEmail(emailKey, otpCode, 'verification', password, name);
 
     res.json({
@@ -339,6 +361,7 @@ app.post('/api/auth/register', async (req, res) => {
             ? `Verification code sent to ${emailKey}` 
             : `Verification Code generated for ${emailKey}`,
         email: emailKey,
+        otpToken: otpToken,
         otpCode: emailSent ? undefined : otpCode
     });
 });
@@ -346,32 +369,71 @@ app.post('/api/auth/register', async (req, res) => {
 // -------------------------------------------------------------
 // AUTH 2: VERIFY EMAIL OTP CODE
 // -------------------------------------------------------------
-app.post('/api/auth/verify-otp', (req, res) => {
-    const { email, otp } = req.body;
+app.post('/api/auth/verify-otp', async (req, res) => {
+    const { email, otp, otpToken } = req.body;
 
     if (!email || !otp) {
         return res.status(400).json({ status: 0, message: 'Email and OTP code are required.' });
     }
 
     const emailKey = email.toLowerCase().trim();
-    const user = usersDb.get(emailKey);
+    const enteredOtp = otp.toString().trim();
+    let user = usersDb.get(emailKey);
 
-    if (!user) {
-        return res.status(404).json({ status: 0, message: 'Registration not found. Please register.' });
+    // 1. Try Firestore if user not found in ephemeral serverless memory
+    if (!user && firebaseDb) {
+        try {
+            const doc = await firebaseDb.collection('users').doc(emailKey.replace(/[^a-zA-Z0-9]/g, '_')).get();
+            if (doc.exists) user = doc.data();
+        } catch (e) {}
     }
 
-    if (user.otpCode !== otp.trim()) {
-        return res.status(400).json({ status: 0, message: 'Invalid Verification Code! Check your email.' });
+    let isValidOtp = false;
+
+    // 2. Check in-memory or Firestore OTP
+    if (user && user.otpCode && user.otpCode.toString().trim() === enteredOtp) {
+        if (!user.otpExpires || Date.now() <= user.otpExpires) {
+            isValidOtp = true;
+        }
     }
 
-    if (Date.now() > user.otpExpires) {
-        return res.status(400).json({ status: 0, message: 'Verification Code expired! Please request a new one.' });
+    // 3. Fallback: Cryptographic stateless HMAC verification
+    if (!isValidOtp && otpToken && otpToken.includes('.')) {
+        try {
+            const [payloadB64, sig] = otpToken.split('.');
+            const expectedSig = crypto.createHmac('sha256', MPX_CONFIG.apiKey).update(payloadB64).digest('hex');
+            if (sig === expectedSig) {
+                const regData = JSON.parse(Buffer.from(payloadB64, 'base64').toString('utf8'));
+                if (regData.email === emailKey && regData.otpCode.toString().trim() === enteredOtp) {
+                    if (Date.now() <= regData.exp) {
+                        isValidOtp = true;
+                        if (!user) {
+                            user = {
+                                name: regData.name,
+                                email: emailKey,
+                                password: regData.password,
+                                binanceAddress: regData.binanceAddress,
+                                isVerified: true,
+                                walletBalance: 0.00
+                            };
+                        }
+                    }
+                }
+            }
+        } catch (tokErr) {
+            console.error('Token verification error:', tokErr.message);
+        }
+    }
+
+    if (!isValidOtp) {
+        return res.status(400).json({ status: 0, message: 'Invalid or expired Verification Code! Please check your email.' });
     }
 
     user.isVerified = true;
     user.otpCode = null;
     usersDb.set(emailKey, user);
     saveDatabaseToDisk();
+    await syncToFirebase('user', emailKey, user);
 
     console.log(`✅ [USER VERIFIED] ${emailKey} verified successfully!`);
 
