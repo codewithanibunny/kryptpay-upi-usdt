@@ -1058,6 +1058,95 @@ app.post('/api/wallet/convert-usdt', (req, res) => {
 });
 
 // -------------------------------------------------------------
+// 3B. API: CREATE PAYOUT / BANK WITHDRAWAL ORDER
+// -------------------------------------------------------------
+app.post('/api/create-payout-order', async (req, res) => {
+    try {
+        const { userEmail, usdtAmount, inrAmount, bankName, accountNumber, ifscCode, accountHolderName } = req.body;
+
+        if (!accountNumber || !ifscCode || !accountHolderName) {
+            return res.status(400).json({ status: 0, message: 'Please provide all bank account details (Bank, Account No, IFSC, Holder Name).' });
+        }
+
+        const emailKey = (userEmail || 'guest@kryptpay.com').toLowerCase().trim();
+        const user = usersDb.get(emailKey);
+        if (!user) {
+            return res.status(404).json({ status: 0, message: 'User account not found.' });
+        }
+
+        // Calculate INR withdrawal amount (accept either direct inrAmount or usdtAmount)
+        let withdrawInr = parseFloat(inrAmount);
+        if (isNaN(withdrawInr) || withdrawInr <= 0) {
+            const uVal = parseFloat(usdtAmount);
+            if (!isNaN(uVal) && uVal > 0) {
+                withdrawInr = parseFloat((uVal * 87.00).toFixed(2));
+            }
+        }
+
+        if (isNaN(withdrawInr) || withdrawInr < 500) {
+            return res.status(400).json({ status: 0, message: 'Minimum bank withdrawal amount is ₹500 INR.' });
+        }
+
+        const currentBal = user.walletBalance || 0;
+        if (currentBal < withdrawInr) {
+            return res.status(400).json({
+                status: 0,
+                message: `Insufficient Wallet Balance! Available: ₹${currentBal.toFixed(2)} INR. Requested: ₹${withdrawInr.toFixed(2)} INR.`
+            });
+        }
+
+        const merchantOrderNo = `KP-WITHDRAW-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        const payoutOrder = {
+            merchant_order_no: merchantOrderNo,
+            type: 'WITHDRAW',
+            amount: withdrawInr.toFixed(2),
+            usdtAmount: (withdrawInr / 89.50).toFixed(2),
+            userEmail: emailKey,
+            bankName: bankName || 'Bank Account',
+            accountNumber: accountNumber,
+            ifscCode: ifscCode.toUpperCase().trim(),
+            accountHolderName: accountHolderName,
+            status: 'PROCESSING',
+            utr: null,
+            txHash: null,
+            created_at: new Date().toISOString()
+        };
+
+        ordersDb.set(merchantOrderNo, payoutOrder);
+
+        if (!userOrdersDb.has(emailKey)) {
+            userOrdersDb.set(emailKey, []);
+        }
+        userOrdersDb.get(emailKey).unshift(merchantOrderNo);
+
+        const newBal = syncUserWalletWithLedger(emailKey);
+        saveDatabaseToDisk();
+        await syncToFirebase('order', merchantOrderNo, payoutOrder);
+
+        // Broadcast real-time 0.1ms wallet update
+        broadcastLiveWallet(emailKey, {
+            type: 'WALLET_UPDATE',
+            walletBalance: newBal,
+            order: payoutOrder
+        });
+
+        console.log(`💸 [PAYOUT / WITHDRAW SUBMITTED] ${merchantOrderNo} (₹${withdrawInr} to ${accountNumber} / ${ifscCode} for ${emailKey})`);
+
+        res.json({
+            status: 1,
+            message: 'Withdrawal request submitted! It will be credited to your bank account after admin/gateway verification.',
+            merchant_order_no: merchantOrderNo,
+            inrAmount: withdrawInr.toFixed(2),
+            newBalance: newBal
+        });
+    } catch (err) {
+        console.error('Error in /api/create-payout-order:', err);
+        res.status(500).json({ status: 0, message: 'Internal Server Error' });
+    }
+});
+
+// -------------------------------------------------------------
 // 4. API: GET USER BALANCE & REAL-TIME SSE STREAM (0.1ms PUSH)
 // -------------------------------------------------------------
 app.get('/api/user-balance/:email', (req, res) => {

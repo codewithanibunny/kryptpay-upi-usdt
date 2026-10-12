@@ -198,6 +198,7 @@
                         <button onclick="filterTransactions('ALL')" id="filter-all" class="px-3 py-1 rounded-xl text-xs font-bold bg-amber-500 text-slate-950">ALL</button>
                         <button onclick="filterTransactions('DEPOSIT')" id="filter-deposit" class="px-3 py-1 rounded-xl text-xs font-bold bg-slate-800 text-slate-400 hover:text-white">DEPOSITS</button>
                         <button onclick="filterTransactions('CONVERT')" id="filter-convert" class="px-3 py-1 rounded-xl text-xs font-bold bg-slate-800 text-slate-400 hover:text-white">CONVERSIONS</button>
+                        <button onclick="filterTransactions('WITHDRAW')" id="filter-withdraw" class="px-3 py-1 rounded-xl text-xs font-bold bg-slate-800 text-slate-400 hover:text-white">WITHDRAWALS</button>
                         <button onclick="filterTransactions('PENDING')" id="filter-pending" class="px-3 py-1 rounded-xl text-xs font-bold bg-slate-800 text-slate-400 hover:text-white">PENDING</button>
                     </div>
 
@@ -373,7 +374,7 @@
 
         function filterTransactions(status) {
             currentFilter = status;
-            ['all', 'deposit', 'convert', 'pending'].forEach(f => {
+            ['all', 'deposit', 'convert', 'withdraw', 'pending'].forEach(f => {
                 const btn = document.getElementById(`filter-${f}`);
                 if (btn) {
                     if (f.toUpperCase() === status) {
@@ -394,7 +395,9 @@
             if (currentFilter === 'DEPOSIT') {
                 filtered = allTransactionsData.filter(o => o.type === 'DEPOSIT' || o.type === 'BUY');
             } else if (currentFilter === 'CONVERT') {
-                filtered = allTransactionsData.filter(o => o.type === 'CONVERT' || o.type === 'WITHDRAW');
+                filtered = allTransactionsData.filter(o => o.type === 'CONVERT');
+            } else if (currentFilter === 'WITHDRAW') {
+                filtered = allTransactionsData.filter(o => o.type === 'WITHDRAW');
             } else if (currentFilter === 'PENDING') {
                 filtered = allTransactionsData.filter(o => o.status === 'PENDING' || o.status === 'PROCESSING' || o.status === 'PENDING_ADMIN_APPROVAL');
             }
@@ -414,9 +417,16 @@
 
             tbody.innerHTML = filtered.map(o => {
                 const isDeposit = o.type === 'DEPOSIT' || o.type === 'BUY';
-                const typeBadge = isDeposit
-                    ? '<span class="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">DEPOSIT</span>'
-                    : '<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">CONVERT</span>';
+                const isWithdraw = o.type === 'WITHDRAW';
+
+                let typeBadge = '';
+                if (isDeposit) {
+                    typeBadge = '<span class="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">DEPOSIT</span>';
+                } else if (isWithdraw) {
+                    typeBadge = '<span class="bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-bold">WITHDRAW</span>';
+                } else {
+                    typeBadge = '<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">CONVERT</span>';
+                }
 
                 const isCompleted = o.status === 'COMPLETED' || o.status === 'PAID' || o.status === 'SUCCESS';
                 const isPendingApproval = o.status === 'PENDING_ADMIN_APPROVAL';
@@ -426,7 +436,9 @@
                 if (isPendingApproval) {
                     statusBadge = `<span class="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded font-bold animate-pulse">PENDING APPROVAL</span>`;
                 } else if (isProcessing) {
-                    statusBadge = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded font-bold animate-pulse">PENDING</span>`;
+                    statusBadge = isWithdraw
+                        ? `<span class="bg-purple-500/10 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded font-bold animate-pulse">PROCESSING BANK</span>`
+                        : `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded font-bold animate-pulse">PENDING</span>`;
                 } else if (isCompleted) {
                     statusBadge = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-bold">COMPLETED</span>`;
                 } else {
@@ -434,27 +446,39 @@
                 }
 
                 const grossAmt = parseFloat(o.amount || 0).toFixed(2);
-                const netAmt = (grossAmt * 0.80).toFixed(2);
+                const netAmt = isDeposit ? (grossAmt * 0.80).toFixed(2) : grossAmt;
 
-                const usdtCol = isDeposit ? '-' : `${o.usdtAmount} USDT`;
+                const usdtCol = isDeposit ? '-' : (isWithdraw ? '- (Bank)' : `${o.usdtAmount} USDT`);
 
                 let actionButtons = '';
                 if (isProcessing) {
                     actionButtons = `
                         <button onclick="updateOrderStatus('${o.merchant_order_no}', 'COMPLETED')" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-2.5 py-1 rounded-lg text-[10px] mr-1 shadow-sm">
-                            ✓ Approve & Credit
+                            ✓ Approve
                         </button>
                         <button onclick="updateOrderStatus('${o.merchant_order_no}', 'FAILED')" class="bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 font-bold px-2 py-1 rounded-lg text-[10px]">
-                            ✕ Reject
+                            ✕ Reject (Refund)
                         </button>
                     `;
                 } else {
                     actionButtons = `<span class="text-slate-600 text-[10px]">Finalized</span>`;
                 }
 
-                const utrCell = o.utr
-                    ? `<span class="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-bold font-mono text-[11px]">${o.utr}</span>`
-                    : `<span class="text-slate-500">-</span>`;
+                let utrCell = '';
+                if (isWithdraw) {
+                    utrCell = `
+                        <div class="text-[10px] leading-tight text-purple-200">
+                            <span class="font-bold text-white">${o.bankName || 'Bank'}</span><br/>
+                            <span class="font-mono text-slate-300">A/C: ${o.accountNumber || '-'}</span><br/>
+                            <span class="font-mono text-amber-300">${o.ifscCode || '-'}</span> • <span class="text-slate-400">${o.accountHolderName || '-'}</span>
+                            ${o.utr ? `<br/><span class="text-emerald-400 font-mono text-[9px] font-bold">UTR: ${o.utr}</span>` : ''}
+                        </div>
+                    `;
+                } else if (o.utr) {
+                    utrCell = `<span class="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-bold font-mono text-[11px]">${o.utr}</span>`;
+                } else {
+                    utrCell = `<span class="text-slate-500">-</span>`;
+                }
 
                 return `
                     <tr class="hover:bg-slate-900/60 transition-colors">
@@ -462,7 +486,7 @@
                         <td class="py-3 px-4 font-sans font-semibold text-slate-300">${o.userEmail || '-'}</td>
                         <td class="py-3 px-4">${typeBadge}</td>
                         <td class="py-3 px-4 font-bold text-white">₹${grossAmt}</td>
-                        <td class="py-3 px-4 font-bold text-emerald-400">₹${netAmt}</td>
+                        <td class="py-3 px-4 font-bold ${isDeposit ? 'text-emerald-400' : 'text-purple-300'}">₹${netAmt}</td>
                         <td class="py-3 px-4 font-bold text-amber-400">${usdtCol}</td>
                         <td class="py-3 px-4">${statusBadge}</td>
                         <td class="py-3 px-4">${utrCell}</td>

@@ -203,22 +203,27 @@ function hideAuthError() {
     }
 }
 
-// Switch Dashboard View Tabs (Deposit vs Convert vs History)
+// Switch Dashboard View Tabs (Deposit vs Convert vs Withdraw vs History)
 function switchDashboardTab(tabName) {
     const depositBtn = document.getElementById('dash-tab-deposit');
     const convertBtn = document.getElementById('dash-tab-convert');
+    const withdrawBtn = document.getElementById('dash-tab-withdraw');
     const historyBtn = document.getElementById('dash-tab-history');
 
     const depositContent = document.getElementById('dash-content-deposit');
     const convertContent = document.getElementById('dash-content-convert');
+    const withdrawContent = document.getElementById('dash-content-withdraw');
     const historyContent = document.getElementById('dash-content-history');
 
-    if (depositBtn) depositBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
-    if (convertBtn) convertBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
-    if (historyBtn) historyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
+    const inactiveBtnClass = "flex-1 py-3 text-xs font-bold rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
+    if (depositBtn) depositBtn.className = inactiveBtnClass;
+    if (convertBtn) convertBtn.className = inactiveBtnClass;
+    if (withdrawBtn) withdrawBtn.className = inactiveBtnClass;
+    if (historyBtn) historyBtn.className = inactiveBtnClass;
 
     if (depositContent) depositContent.classList.add('hidden');
     if (convertContent) convertContent.classList.add('hidden');
+    if (withdrawContent) withdrawContent.classList.add('hidden');
     if (historyContent) historyContent.classList.add('hidden');
 
     if (tabName === 'deposit') {
@@ -227,6 +232,10 @@ function switchDashboardTab(tabName) {
     } else if (tabName === 'convert') {
         if (convertBtn) convertBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-amber-500 text-slate-950 shadow-lg flex items-center justify-center gap-1.5 transition-all";
         if (convertContent) convertContent.classList.remove('hidden');
+        updateWalletBalanceDisplay();
+    } else if (tabName === 'withdraw') {
+        if (withdrawBtn) withdrawBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-purple-600 text-white shadow-lg flex items-center justify-center gap-1.5 transition-all";
+        if (withdrawContent) withdrawContent.classList.remove('hidden');
         updateWalletBalanceDisplay();
     } else if (tabName === 'history') {
         if (historyBtn) historyBtn.className = "flex-1 py-3 text-xs font-bold rounded-xl bg-slate-800 text-emerald-400 border border-slate-700 shadow-lg flex items-center justify-center gap-1.5 transition-all";
@@ -708,8 +717,10 @@ function renderWalletBalance(bal) {
     const formatted = `₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const headerBal = document.getElementById('wallet-balance-display');
     const convertBal = document.getElementById('convert-avail-balance');
+    const withdrawBal = document.getElementById('withdraw-avail-balance');
     if (headerBal) headerBal.innerText = formatted;
     if (convertBal) convertBal.innerText = formatted;
+    if (withdrawBal) withdrawBal.innerText = formatted;
 }
 
 function connectLiveWalletStream() {
@@ -1082,33 +1093,53 @@ async function initiateMPXPayInOrder() {
 }
 
 // ------------------------------------------------------------------
-// WITHDRAWAL / PAYOUT HANDLER (SELL USDT FOR BANK INR)
+// WITHDRAWAL / PAYOUT HANDLER (SELL USDT OR WALLET INR TO BANK)
 // ------------------------------------------------------------------
+function setWithdrawMaxAmount() {
+    const bal = currentUser ? (currentUser.walletBalance || 0) : 0;
+    const input = document.getElementById('withdraw-inr-amount');
+    if (input) {
+        input.value = Math.max(0, bal);
+    }
+}
+
 async function handleWithdrawalSubmit(e) {
     e.preventDefault();
 
-    const usdtAmount = document.getElementById('withdraw-usdt-amount').value;
+    const inrInput = document.getElementById('withdraw-inr-amount');
+    const inrAmount = inrInput ? parseFloat(inrInput.value) : 0;
     const bankName = document.getElementById('payout-bank-name').value.trim();
     const accountHolderName = document.getElementById('payout-holder-name').value.trim();
     const accountNumber = document.getElementById('payout-account-no').value.trim();
     const ifscCode = document.getElementById('payout-ifsc').value.trim();
 
-    if (!usdtAmount || !accountNumber || !ifscCode || !accountHolderName) {
+    if (isNaN(inrAmount) || inrAmount < 500) {
+        alert('Minimum bank withdrawal amount is ₹500 INR.');
+        return;
+    }
+
+    if (!accountNumber || !ifscCode || !accountHolderName) {
         alert('Please fill in all bank account details for withdrawal.');
+        return;
+    }
+
+    const availBal = currentUser ? (currentUser.walletBalance || 0) : 0;
+    if (availBal < inrAmount) {
+        alert(`Insufficient Wallet Balance! Available: ₹${availBal.toFixed(2)} INR. Requested: ₹${inrAmount.toFixed(2)} INR.`);
         return;
     }
 
     const payoutBtn = document.getElementById('payout-btn');
     const origText = payoutBtn.innerHTML;
     payoutBtn.disabled = true;
-    payoutBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Submitting Payout...`;
+    payoutBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Submitting Bank Withdrawal...`;
 
     try {
         const res = await fetch('/api/create-payout-order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                usdtAmount: usdtAmount,
+                inrAmount: inrAmount,
                 userEmail: currentUser ? currentUser.email : 'user@kryptpay.com',
                 bankName: bankName,
                 accountHolderName: accountHolderName,
@@ -1123,7 +1154,12 @@ async function handleWithdrawalSubmit(e) {
 
         if (data.status === 1) {
             alert(`✅ Withdrawal Request Submitted!\nOrder ID: ${data.merchant_order_no}\nNet Payout: ₹${data.inrAmount} INR\nSettlement Status: Processing`);
+            if (data.newBalance !== undefined && currentUser) {
+                currentUser.walletBalance = data.newBalance;
+                renderWalletBalance(data.newBalance);
+            }
             switchDashboardTab('history');
+            loadUserTransactionLedger();
         } else {
             alert('Payout Error: ' + data.message);
         }
@@ -1171,11 +1207,17 @@ async function loadUserTransactionLedger() {
                 
                 tbody.innerHTML = data.transactions.map(tx => {
                     const isDeposit = tx.type === 'DEPOSIT' || tx.type === 'BUY';
-                    const isConvert = tx.type === 'CONVERT' || tx.type === 'WITHDRAW';
+                    const isWithdraw = tx.type === 'WITHDRAW';
+                    const isConvert = tx.type === 'CONVERT';
 
-                    const typeBadge = isDeposit
-                        ? '<span class="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">DEPOSIT</span>'
-                        : '<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">CONVERT</span>';
+                    let typeBadge = '';
+                    if (isDeposit) {
+                        typeBadge = '<span class="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">DEPOSIT</span>';
+                    } else if (isWithdraw) {
+                        typeBadge = '<span class="bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-bold">WITHDRAW</span>';
+                    } else {
+                        typeBadge = '<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">CONVERT</span>';
+                    }
 
                     const isPendingApproval = tx.status === 'PENDING_ADMIN_APPROVAL';
                     const isProcessing = tx.status === 'PROCESSING' || tx.status === 'PENDING' || isPendingApproval;
@@ -1195,12 +1237,17 @@ async function loadUserTransactionLedger() {
                     const netAmt = tx.netAmount || (isDeposit ? (parseFloat(tx.amount) * 0.80).toFixed(2) : tx.amount);
                     const inrDisplay = isDeposit
                         ? `<span class="text-emerald-400 font-bold">+₹${parseFloat(netAmt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>`
-                        : `<span class="text-slate-200 font-bold">-₹${parseFloat(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>`;
+                        : `<span class="text-rose-400 font-bold">-₹${parseFloat(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>`;
 
                     // USDT Column Formatting
-                    const usdtDisplay = isDeposit
-                        ? `<span class="text-slate-500 font-mono text-[11px]">- (In Wallet)</span>`
-                        : `<span class="font-bold text-amber-400">${tx.usdtAmount} USDT</span>`;
+                    let usdtDisplay = '';
+                    if (isDeposit) {
+                        usdtDisplay = `<span class="text-slate-500 font-mono text-[11px]">- (In Wallet)</span>`;
+                    } else if (isWithdraw) {
+                        usdtDisplay = `<span class="text-slate-500 font-mono text-[11px]">- (Bank INR)</span>`;
+                    } else {
+                        usdtDisplay = `<span class="font-bold text-amber-400">${tx.usdtAmount} USDT</span>`;
+                    }
 
                     // Status Badge Markup
                     let statusMarkup = '';
@@ -1209,7 +1256,7 @@ async function loadUserTransactionLedger() {
                     } else if (isProcessing) {
                         statusMarkup = isDeposit
                             ? `<span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 animate-pulse inline-flex items-center gap-1.5"><i class="fa-solid fa-spinner animate-spin text-[10px]"></i> Awaiting UPI...</span>`
-                            : `<span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 animate-pulse inline-flex items-center gap-1.5"><i class="fa-solid fa-spinner animate-spin text-[10px]"></i> Processing...</span>`;
+                            : `<span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 animate-pulse inline-flex items-center gap-1.5"><i class="fa-solid fa-spinner animate-spin text-[10px]"></i> Processing Bank...</span>`;
                     } else if (isCompleted) {
                         statusMarkup = isDeposit
                             ? `<span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 inline-flex items-center gap-1.5"><i class="fa-solid fa-circle-check text-emerald-400"></i> Wallet Credited</span>`
@@ -1222,9 +1269,15 @@ async function loadUserTransactionLedger() {
                         `;
                     }
 
-                    // UTR Display with 1-click submit button if pending
+                    // UTR / Bank Details Display
                     let utrDisplay = '';
-                    if (isProcessing) {
+                    if (isWithdraw) {
+                        if (tx.utr) {
+                            utrDisplay = `<span class="bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded font-bold font-mono text-[11px]">${tx.utr}</span>`;
+                        } else {
+                            utrDisplay = `<span class="text-purple-300 font-mono text-[11px]">${tx.bankName || 'Bank'} A/C</span>`;
+                        }
+                    } else if (isProcessing) {
                         if (tx.utr) {
                             utrDisplay = `<span class="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-bold font-mono text-[11px]">${tx.utr}</span>`;
                         } else {
@@ -1241,9 +1294,11 @@ async function loadUserTransactionLedger() {
                         utrDisplay = `<span class="text-slate-300 font-mono text-[11px]">${tx.utr || 'Confirmed'}</span>`;
                     }
 
-                    // BSC TxHash Display
+                    // BSC TxHash / Bank Details Display
                     let txHashDisplay = '';
-                    if (isDeposit) {
+                    if (isWithdraw) {
+                        txHashDisplay = `<span class="text-purple-300/80 font-mono text-[11px]">${tx.accountNumber ? 'A/C: ...' + tx.accountNumber.slice(-4) + ' (' + (tx.ifscCode || '') + ')' : 'Bank IMPS'}</span>`;
+                    } else if (isDeposit) {
                         txHashDisplay = `<span class="text-slate-500 font-mono text-[11px]">- (In Wallet)</span>`;
                     } else if (isProcessing) {
                         txHashDisplay = `<span class="text-amber-400/80 font-mono text-[11px] flex items-center gap-1"><i class="fa-solid fa-arrows-rotate animate-spin text-[9px]"></i> Dispatched on Chain...</span>`;
