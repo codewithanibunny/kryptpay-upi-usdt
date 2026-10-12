@@ -79,7 +79,10 @@ const ordersDb = new Map(); // merchant_order_no -> order object
 const userOrdersDb = new Map(); // userEmail -> Array of merchant_order_no
 
 // Persistent Database Storage File Path (database.json)
-const DB_FILE_PATH = path.join(__dirname, 'database.json');
+// On Vercel serverless, __dirname is read-only so write to /tmp
+const DB_FILE_PATH = process.env.VERCEL
+    ? path.join('/tmp', 'database.json')
+    : path.join(__dirname, 'database.json');
 
 // -------------------------------------------------------------
 // FIREBASE CLOUD DATABASE & AUTH INTEGRATION (Firestore & Auth Sync)
@@ -159,8 +162,19 @@ function saveDatabaseToDisk() {
 
 function loadDatabaseFromDisk() {
     try {
-        if (fs.existsSync(DB_FILE_PATH)) {
-            const raw = fs.readFileSync(DB_FILE_PATH, 'utf8');
+        // If on Vercel and /tmp/database.json doesn't exist yet, seed from bundled file
+        if (process.env.VERCEL && !fs.existsSync(DB_FILE_PATH)) {
+            const bundledPath = path.join(__dirname, 'database.json');
+            if (fs.existsSync(bundledPath)) {
+                try {
+                    fs.copyFileSync(bundledPath, DB_FILE_PATH);
+                } catch(copyErr) {}
+            }
+        }
+
+        const pathToRead = fs.existsSync(DB_FILE_PATH) ? DB_FILE_PATH : path.join(__dirname, 'database.json');
+        if (fs.existsSync(pathToRead)) {
+            const raw = fs.readFileSync(pathToRead, 'utf8');
             const payload = JSON.parse(raw);
 
             if (payload.users && Array.isArray(payload.users)) {
@@ -176,7 +190,7 @@ function loadDatabaseFromDisk() {
                 payload.userOrders.forEach(([k, v]) => userOrdersDb.set(k, v));
             }
 
-            console.log(`💾 [PERSISTENT DB LOADED] Restored ${usersDb.size} Users & ${ordersDb.size} Orders from database.json!`);
+            console.log(`💾 [PERSISTENT DB LOADED] Restored ${usersDb.size} Users & ${ordersDb.size} Orders from ${pathToRead}!`);
         } else {
             console.log('ℹ️ Initialized persistent database.json storage.');
         }
@@ -740,33 +754,50 @@ app.post('/api/create-payin-order', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 2. WEBHOOK: MPXPAYS PAYMENT CALLBACK LISTENER
+// 2. WEBHOOK & CALLBACK: MPXPAYS PAYMENT LISTENER
 // -------------------------------------------------------------
-app.post('/api/mpxpay-webhook', (req, res) => {
+app.all(['/api/mpxpay-webhook', '/api/mpxpay-callback'], (req, res) => {
     try {
-        console.log('\n🔔 [MPXPays Webhook Received]:', req.body);
-        const { status, amount, final_amount, platform_order_no, merchant_order_no, utr } = req.body;
+        console.log('\n🔔 [MPXPays Webhook/Callback Received]:', { method: req.method, query: req.query, body: req.body });
+        const payload = { ...req.query, ...req.body };
+        const { status, amount, final_amount } = payload;
+
+        const merchant_order_no = payload.merchant_order_no || payload.orderNo || payload.order_no || payload.merchantOrderNo;
+        const platform_order_no = payload.platform_order_no || payload.orderId || payload.order_id || payload.trans_id;
+        const realUtr = payload.utr || payload.transaction_id || payload.trans_id || payload.platform_order_no || payload.orderId || payload.ref_no || payload.bank_ref || null;
 
         if (!merchant_order_no) {
-            return res.status(400).json({ status: 'failed', message: 'Missing merchant_order_no' });
+            console.log('⚠️ Webhook missing merchant_order_no:', payload);
+            return res.status(200).json({ status: 'ignored', message: 'Missing merchant_order_no' });
         }
 
-        const existingOrder = ordersDb.get(merchant_order_no) || {
-            merchant_order_no,
-            type: 'DEPOSIT',
-            amount: amount || '500.00',
-            usdtAmount: ((parseFloat(amount) || 500) / 89.50).toFixed(2),
-            binanceAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
-            userEmail: 'guest@kryptpay.com'
-        };
+        let existingOrder = ordersDb.get(merchant_order_no);
+        if (!existingOrder) {
+            existingOrder = {
+                merchant_order_no,
+                type: 'DEPOSIT',
+                amount: amount || '1000.00',
+                feeTotal: '200.00',
+                netAmount: (parseFloat(amount || 1000) * 0.80).toFixed(2),
+                usdtAmount: '0.00',
+                binanceAddress: '',
+                userEmail: 'guest@kryptpay.com',
+                status: 'PENDING',
+                created_at: new Date().toISOString()
+            };
+            ordersDb.set(merchant_order_no, existingOrder);
+        }
 
-        if (status === 'success') {
+        const rawStatus = String(status || payload.order_status || payload.pay_status || '').toLowerCase();
+        const isSuccess = ['success', '1', 'paid', 'completed', 'true'].includes(rawStatus);
+
+        if (isSuccess) {
             const mockTxHash = '0x' + crypto.randomBytes(32).toString('hex');
             
             existingOrder.status = 'COMPLETED';
-            existingOrder.utr = utr || `UTR-${Date.now()}`;
-            existingOrder.platform_order_no = platform_order_no;
-            existingOrder.final_amount = final_amount;
+            existingOrder.utr = realUtr || existingOrder.utr || `UTR-${Date.now()}`;
+            existingOrder.platform_order_no = platform_order_no || existingOrder.platform_order_no || realUtr;
+            existingOrder.final_amount = final_amount || amount || existingOrder.amount;
             existingOrder.txHash = mockTxHash;
             existingOrder.paid_at = new Date().toISOString();
 
@@ -774,24 +805,109 @@ app.post('/api/mpxpay-webhook', (req, res) => {
 
             // Auto-Credit INR to User Wallet Balance (Net Amount after 20% fee)
             const grossAmt = parseFloat(amount || existingOrder.amount || 0);
-            const netCredited = (grossAmt * 0.80).toFixed(2);
+            const netCredited = parseFloat((grossAmt * 0.80).toFixed(2));
             
             const emailKey = (existingOrder.userEmail || '').toLowerCase();
             if (usersDb.has(emailKey)) {
                 const u = usersDb.get(emailKey);
-                u.walletBalance = parseFloat(((u.walletBalance || 0) + parseFloat(netCredited)).toFixed(2));
+                u.walletBalance = parseFloat(((u.walletBalance || 0) + netCredited).toFixed(2));
                 usersDb.set(emailKey, u);
-                console.log(`💳 [WALLET CREDITED] ${emailKey} credited +₹${netCredited} INR | New Balance: ₹${u.walletBalance}`);
+                console.log(`💳 [WALLET AUTO-CREDITED] ${emailKey} credited +₹${netCredited} INR | New Balance: ₹${u.walletBalance} | Gateway UTR: ${existingOrder.utr}`);
             }
 
-            return res.status(200).json({ status: 'success', message: 'Webhook processed' });
+            saveDatabaseToDisk();
+
+            // If user was redirected in browser from payment gateway
+            if (req.method === 'GET' || (req.headers.accept && req.headers.accept.includes('text/html'))) {
+                return res.redirect(`/?order_success=${encodeURIComponent(merchant_order_no)}&utr=${encodeURIComponent(existingOrder.utr)}`);
+            }
+
+            return res.status(200).json({ status: 'success', message: 'Webhook processed', utr: existingOrder.utr });
         } else {
-            existingOrder.status = 'FAILED';
-            ordersDb.set(merchant_order_no, existingOrder);
-            return res.status(200).json({ status: 'failed', message: 'Transaction failed' });
+            if (rawStatus === 'failed' || rawStatus === '0') {
+                existingOrder.status = 'FAILED';
+                ordersDb.set(merchant_order_no, existingOrder);
+                saveDatabaseToDisk();
+            }
+            return res.status(200).json({ status: 'ok', message: 'Webhook received' });
         }
     } catch (err) {
+        console.error('Webhook error:', err);
         return res.status(500).json({ status: 'error', message: err.message });
+    }
+});
+
+// -------------------------------------------------------------
+// 2B. API: CLAIM / SUBMIT DEPOSIT UTR FOR STUCK PAYMENTS
+// -------------------------------------------------------------
+app.post('/api/claim-deposit-utr', (req, res) => {
+    try {
+        const { orderNo, utr, userEmail } = req.body;
+        if (!utr) {
+            return res.status(400).json({ status: 0, message: 'Please provide Bank UTR or Gateway Transaction ID.' });
+        }
+
+        const cleanUtr = utr.trim();
+        let targetOrderNo = orderNo;
+
+        // If orderNo not provided or invalid, find latest pending deposit for this user
+        if (!targetOrderNo && userEmail) {
+            const emailKey = userEmail.toLowerCase().trim();
+            const userOrders = userOrdersDb.get(emailKey) || [];
+            for (const no of userOrders) {
+                const ord = ordersDb.get(no);
+                if (ord && (ord.type === 'DEPOSIT' || ord.type === 'BUY') && (ord.status === 'PENDING' || ord.status === 'PROCESSING' || ord.status === 'PENDING_ADMIN_APPROVAL')) {
+                    targetOrderNo = no;
+                    break;
+                }
+            }
+        }
+
+        let order = targetOrderNo ? ordersDb.get(targetOrderNo) : null;
+        if (!order) {
+            // Create a pending record so admin can see and approve it
+            const newOrderNo = targetOrderNo || `KP-BUY-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+            order = {
+                merchant_order_no: newOrderNo,
+                type: 'DEPOSIT',
+                amount: '1000.00',
+                feeTotal: '200.00',
+                netAmount: '800.00',
+                usdtAmount: '0.00',
+                binanceAddress: '',
+                userEmail: (userEmail || 'user@kryptpay.com').toLowerCase(),
+                status: 'PENDING_ADMIN_APPROVAL',
+                utr: cleanUtr,
+                txHash: null,
+                created_at: new Date().toISOString()
+            };
+            ordersDb.set(newOrderNo, order);
+            const emKey = order.userEmail;
+            if (!userOrdersDb.has(emKey)) userOrdersDb.set(emKey, []);
+            userOrdersDb.get(emKey).unshift(newOrderNo);
+        } else {
+            order.utr = cleanUtr;
+            if (order.status !== 'COMPLETED') {
+                order.status = 'PENDING_ADMIN_APPROVAL';
+            }
+            ordersDb.set(order.merchant_order_no, order);
+        }
+
+        saveDatabaseToDisk();
+
+        console.log(`📌 [UTR CLAIM SUBMITTED] Order ${order.merchant_order_no} -> UTR: ${cleanUtr} (Status: ${order.status})`);
+
+        res.json({
+            status: 1,
+            message: order.status === 'COMPLETED' 
+                ? 'Payment is already confirmed and credited!' 
+                : 'UTR recorded successfully! Queued for Admin Approval.',
+            orderStatus: order.status,
+            order
+        });
+    } catch(err) {
+        console.error('Error claiming UTR:', err);
+        res.status(500).json({ status: 0, message: 'Server error processing UTR claim.' });
     }
 });
 
@@ -1000,7 +1116,7 @@ app.get('/api/admin/data', (req, res) => {
             totalDepositsGross: totalDepositsGross.toFixed(2),
             totalFeesEarned: totalFeesEarned.toFixed(2),
             totalUsdtDispatched: totalUsdtDispatched.toFixed(2),
-            pendingOrdersCount: allOrders.filter(o => o.status === 'PENDING' || o.status === 'PROCESSING').length
+            pendingOrdersCount: allOrders.filter(o => o.status === 'PENDING' || o.status === 'PROCESSING' || o.status === 'PENDING_ADMIN_APPROVAL').length
         },
         users: allUsers,
         transactions: allOrders.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))

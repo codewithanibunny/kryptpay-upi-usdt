@@ -327,6 +327,33 @@
                             <span>COMPLETE PAYMENT ON UPI GATEWAY</span>
                         </button>
                     </div>
+
+                    <!-- Payment Claim Section (If payment was deducted but webhook lagged) -->
+                    <div class="bg-slate-900/80 rounded-2xl p-4 border border-amber-500/30 text-left space-y-3">
+                        <div class="flex items-center justify-between cursor-pointer" onclick="toggleClaimSection()">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold">!</span>
+                                <span class="text-xs font-bold text-amber-300">Payment Deducted on UPI? Claim / Enter UTR</span>
+                            </div>
+                            <span id="claim-toggle-icon" class="text-xs text-slate-400"><i class="fa-solid fa-chevron-down"></i></span>
+                        </div>
+                        
+                        <div id="claim-utr-section" class="space-y-2 pt-2 border-t border-slate-800">
+                            <p class="text-[11px] text-slate-400">
+                                If you completed payment on UPI, paste the <strong>Gateway Transaction ID</strong> (e.g. <code class="text-amber-300">W6101...</code>) or <strong>Bank UTR (12 digits)</strong> below:
+                            </p>
+                            <div class="flex gap-2">
+                                <input type="text" id="claim-utr-input" placeholder="e.g. W61012061919246444945a362"
+                                    class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white font-mono placeholder-slate-600 focus:outline-none focus:border-amber-400">
+                                <button type="button" onclick="submitDepositUtrClaim()" id="claim-utr-btn"
+                                    class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs whitespace-nowrap shadow-md transition-all">
+                                    Verify UTR
+                                </button>
+                            </div>
+                            <p id="claim-status-msg" class="text-[11px] hidden"></p>
+                        </div>
+                    </div>
+
                     <button type="button" onclick="resetForm()" class="w-full text-xs text-slate-500 hover:text-slate-300 py-1">
                         ← Change Amount
                     </button>
@@ -561,34 +588,34 @@
                 <i class="fa-solid fa-check animate-bounce"></i>
             </div>
 
-            <h3 class="font-display font-black text-2xl text-white">Payment Confirmed!</h3>
-            <p class="text-xs text-slate-300">UPI Payment Verified! USDT has been automatically dispatched to your Binance BEP20 Address.</p>
+            <h3 id="modal-title" class="font-display font-black text-2xl text-white">Payment Confirmed!</h3>
+            <p id="modal-subtitle" class="text-xs text-slate-300">UPI Payment Verified! Funds credited to your NexaPay Wallet balance.</p>
 
             <div class="bg-slate-900 rounded-2xl p-4 border border-slate-800 text-left text-xs space-y-2 font-mono">
-                <div class="flex justify-between">
-                    <span class="text-slate-400">Amount Paid:</span>
-                    <span id="modal-inr" class="text-white font-bold">₹500.00 INR</span>
+                <div id="row-modal-inr" class="flex justify-between">
+                    <span id="modal-inr-label" class="text-slate-400">Amount Paid:</span>
+                    <span id="modal-inr" class="text-white font-bold">₹1,000.00 INR</span>
                 </div>
-                <div class="flex justify-between">
-                    <span class="text-slate-400">USDT Credit:</span>
-                    <span id="modal-usdt" class="text-emerald-400 font-bold">5.58 USDT</span>
+                <div id="row-modal-usdt" class="flex justify-between">
+                    <span id="modal-usdt-label" class="text-slate-400">Credit / Value:</span>
+                    <span id="modal-usdt" class="text-emerald-400 font-bold">+₹800.00 INR</span>
                 </div>
-                <div class="flex justify-between">
-                    <span class="text-slate-400">Bank UTR:</span>
-                    <span id="modal-utr" class="text-white font-bold">412200988712</span>
+                <div id="row-modal-utr" class="flex justify-between">
+                    <span id="modal-utr-label" class="text-slate-400">Gateway UTR:</span>
+                    <span id="modal-utr" class="text-amber-300 font-bold font-mono">W61012061919246444945a362</span>
                 </div>
-                <div class="flex justify-between">
+                <div id="row-modal-address" class="flex justify-between">
                     <span class="text-slate-400">Binance Address:</span>
                     <span id="modal-address" class="text-slate-300 truncate max-w-[170px]">0x71C...39F</span>
                 </div>
-                <div class="flex justify-between border-t border-slate-800 pt-2">
+                <div id="row-modal-txhash" class="flex justify-between border-t border-slate-800 pt-2">
                     <span class="text-slate-400">BSC Tx Hash:</span>
                     <span id="modal-txhash" class="text-cyan-400 font-bold">0x9b3f...e82c</span>
                 </div>
             </div>
 
-            <button onclick="closeSuccessModal()" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all">
-                Done / New Transaction
+            <button onclick="closeSuccessModal()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl transition-all shadow-md">
+                Done / View Dashboard
             </button>
         </div>
     </div>

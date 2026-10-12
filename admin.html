@@ -396,7 +396,7 @@
             } else if (currentFilter === 'CONVERT') {
                 filtered = allTransactionsData.filter(o => o.type === 'CONVERT' || o.type === 'WITHDRAW');
             } else if (currentFilter === 'PENDING') {
-                filtered = allTransactionsData.filter(o => o.status === 'PENDING' || o.status === 'PROCESSING');
+                filtered = allTransactionsData.filter(o => o.status === 'PENDING' || o.status === 'PROCESSING' || o.status === 'PENDING_ADMIN_APPROVAL');
             }
 
             document.getElementById('tx-count-display').innerText = filtered.length;
@@ -419,10 +419,13 @@
                     : '<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">CONVERT</span>';
 
                 const isCompleted = o.status === 'COMPLETED' || o.status === 'PAID' || o.status === 'SUCCESS';
-                const isProcessing = o.status === 'PENDING' || o.status === 'PROCESSING';
+                const isPendingApproval = o.status === 'PENDING_ADMIN_APPROVAL';
+                const isProcessing = o.status === 'PENDING' || o.status === 'PROCESSING' || isPendingApproval;
 
                 let statusBadge = '';
-                if (isProcessing) {
+                if (isPendingApproval) {
+                    statusBadge = `<span class="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded font-bold animate-pulse">PENDING APPROVAL</span>`;
+                } else if (isProcessing) {
                     statusBadge = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded font-bold animate-pulse">PENDING</span>`;
                 } else if (isCompleted) {
                     statusBadge = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-bold">COMPLETED</span>`;
@@ -438,29 +441,33 @@
                 let actionButtons = '';
                 if (isProcessing) {
                     actionButtons = `
-                        <button onclick="updateOrderStatus('${o.merchant_order_no}', 'COMPLETED')" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-2.5 py-1 rounded-lg text-[10px] mr-1">
-                            Approve / Complete
+                        <button onclick="updateOrderStatus('${o.merchant_order_no}', 'COMPLETED')" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-2.5 py-1 rounded-lg text-[10px] mr-1 shadow-sm">
+                            ✓ Approve & Credit
                         </button>
-                        <button onclick="updateOrderStatus('${o.merchant_order_no}', 'FAILED')" class="bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 font-bold px-2.5 py-1 rounded-lg text-[10px]">
-                            Reject
+                        <button onclick="updateOrderStatus('${o.merchant_order_no}', 'FAILED')" class="bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 font-bold px-2 py-1 rounded-lg text-[10px]">
+                            ✕ Reject
                         </button>
                     `;
                 } else {
                     actionButtons = `<span class="text-slate-600 text-[10px]">Finalized</span>`;
                 }
 
+                const utrCell = o.utr
+                    ? `<span class="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-bold font-mono text-[11px]">${o.utr}</span>`
+                    : `<span class="text-slate-500">-</span>`;
+
                 return `
                     <tr class="hover:bg-slate-900/60 transition-colors">
-                        <td class="py-3 px-4 font-bold text-white">${o.merchant_order_no}</td>
+                        <td class="py-3 px-4 font-bold text-white font-mono">${o.merchant_order_no}</td>
                         <td class="py-3 px-4 font-sans font-semibold text-slate-300">${o.userEmail || '-'}</td>
                         <td class="py-3 px-4">${typeBadge}</td>
                         <td class="py-3 px-4 font-bold text-white">₹${grossAmt}</td>
                         <td class="py-3 px-4 font-bold text-emerald-400">₹${netAmt}</td>
                         <td class="py-3 px-4 font-bold text-amber-400">${usdtCol}</td>
                         <td class="py-3 px-4">${statusBadge}</td>
-                        <td class="py-3 px-4 text-slate-300 text-[11px]">${o.utr || '-'}</td>
-                        <td class="py-3 px-4 text-cyan-400 text-[11px]">${o.txHash ? o.txHash.substring(0, 10) + '...' : '-'}</td>
-                        <td class="py-3 px-4 text-right">${actionButtons}</td>
+                        <td class="py-3 px-4">${utrCell}</td>
+                        <td class="py-3 px-4 text-cyan-400 text-[11px] font-mono">${o.txHash ? o.txHash.substring(0, 10) + '...' : '-'}</td>
+                        <td class="py-3 px-4 text-right whitespace-nowrap">${actionButtons}</td>
                     </tr>
                 `;
             }).join('');

@@ -6,36 +6,119 @@ let currentPollInterval = null;
 let pendingVerificationEmail = null;
 let pendingOtpToken = '';
 
+// ================= COOKIE & SESSION HELPERS (30-DAY PERSISTENCE) =================
+function setSessionCookie(user) {
+    if (!user) return;
+    try {
+        const d = new Date();
+        d.setTime(d.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 Days Expiry
+        const cookieStr = `nexapay_session=${encodeURIComponent(JSON.stringify(user))}; expires=${d.toUTCString()}; path=/; SameSite=Lax`;
+        document.cookie = cookieStr;
+    } catch (e) {
+        console.error('Error setting session cookie:', e);
+    }
+}
+
+function getSessionCookie() {
+    try {
+        const name = "nexapay_session=";
+        const decodedCookie = decodeURIComponent(document.cookie);
+        const ca = decodedCookie.split(';');
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i].trim();
+            if (c.indexOf(name) === 0) {
+                const jsonStr = c.substring(name.length, c.length);
+                return JSON.parse(jsonStr);
+            }
+        }
+    } catch (e) {}
+    return null;
+}
+
+function clearSessionCookie() {
+    document.cookie = "nexapay_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax";
+}
+
+function saveUserSession(user) {
+    if (!user) return;
+    currentUser = user;
+    const jsonStr = JSON.stringify(user);
+    try {
+        localStorage.setItem('nexapay_user', jsonStr);
+        localStorage.setItem('kryptpay_user', jsonStr);
+    } catch (e) {}
+    setSessionCookie(user);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     fetchLiveRate();
     calculateUsdt();
     checkSavedSession();
     initGoogleAuth();
+    checkUrlPaymentStatus();
 
     // Listen for Google Auth Popup Window message
     window.addEventListener('message', (event) => {
         if (event.data && event.data.type === 'GOOGLE_AUTH_SUCCESS') {
-            currentUser = event.data.user;
-            localStorage.setItem('nexapay_user', JSON.stringify(currentUser));
+            saveUserSession(event.data.user);
             closeGoogleAuthModal();
             applyUserSession();
         }
     });
 });
 
-// Check saved user session in LocalStorage
-function checkSavedSession() {
-    const saved = localStorage.getItem('nexapay_user') || localStorage.getItem('kryptpay_user');
-    if (saved) {
-        try {
-            currentUser = JSON.parse(saved);
-            applyUserSession();
-        } catch (e) {
-            showLoggedOutState();
+// Check saved user session in Cookie & LocalStorage
+async function checkSavedSession() {
+    let savedUser = getSessionCookie();
+    if (!savedUser) {
+        const local = localStorage.getItem('nexapay_user') || localStorage.getItem('kryptpay_user');
+        if (local) {
+            try {
+                savedUser = JSON.parse(local);
+            } catch (e) {}
         }
+    }
+
+    if (savedUser && savedUser.email) {
+        currentUser = savedUser;
+        saveUserSession(savedUser); // Ensure 30-day cookie refreshed
+        applyUserSession();
+
+        // Refresh latest balance and orders in background
+        try {
+            const res = await fetch(`/api/user-balance/${encodeURIComponent(currentUser.email)}`);
+            if (res.ok) {
+                const balData = await res.json();
+                if (balData.status === 1 && balData.walletBalance !== undefined) {
+                    currentUser.walletBalance = balData.walletBalance;
+                    saveUserSession(currentUser);
+                    updateWalletBalanceDisplay();
+                }
+            }
+        } catch (e) {}
     } else {
         showLoggedOutState();
     }
+}
+
+function checkUrlPaymentStatus() {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const orderSuccess = params.get('order_success');
+        const urlUtr = params.get('utr');
+        if (orderSuccess) {
+            window.history.replaceState(null, null, window.location.pathname);
+            fetch(`/api/check-order-status/${encodeURIComponent(orderSuccess)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 1) {
+                        data.utr = urlUtr || data.utr;
+                        showOrderSuccessModal(data);
+                    }
+                })
+                .catch(() => {});
+        }
+    } catch (e) {}
 }
 
 function showLoggedOutState() {
@@ -202,8 +285,7 @@ async function fetchGoogleUserInfo(accessToken) {
             });
             const data = await res.json();
             if (data.status === 1) {
-                currentUser = data.user;
-                localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+                saveUserSession(data.user);
                 applyUserSession();
             }
         }
@@ -254,8 +336,7 @@ async function handleGoogleCredentialResponse(response) {
                 });
                 const data = await res.json();
                 if (data.status === 1) {
-                    currentUser = data.user;
-                    localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+                    saveUserSession(data.user);
                     applyUserSession();
                 }
             } catch (e) {
@@ -327,8 +408,7 @@ async function handleCustomGoogleAuthSubmit(e) {
         });
         const data = await res.json();
         if (data.status === 1) {
-            currentUser = data.user;
-            localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+            saveUserSession(data.user);
             closeGoogleAuthModal();
             applyUserSession();
         } else {
@@ -522,8 +602,7 @@ async function handleOtpVerification(e) {
         otpBtn.innerHTML = `Verify Code & Activate Account`;
 
         if (data.status === 1 && data.user) {
-            currentUser = data.user;
-            localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+            saveUserSession(data.user);
             closeOtpModal();
             applyUserSession();
             alert('🎉 Email Verified Successfully! Account Activated.');
@@ -571,8 +650,7 @@ async function handleEmailLogin(e) {
         loginBtn.innerHTML = `Login to Dashboard`;
 
         if (data.status === 1 && data.user) {
-            currentUser = data.user;
-            localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+            saveUserSession(data.user);
             applyUserSession();
         } else if (data.status === 2) {
             // Pending OTP Verification
@@ -590,8 +668,13 @@ async function handleEmailLogin(e) {
 }
 
 function logoutUser() {
+    clearSessionCookie();
     currentUser = null;
-    localStorage.removeItem('kryptpay_user');
+    try {
+        localStorage.removeItem('nexapay_user');
+        localStorage.removeItem('kryptpay_user');
+        localStorage.removeItem('active_pending_order');
+    } catch(e) {}
     showLoggedOutState();
 }
 
@@ -902,6 +985,11 @@ async function initiateMPXPayInOrder() {
         }
 
         if (data.status === 1 && data.payment_url) {
+            trackedProcessingOrders.add(data.merchant_order_no);
+            try {
+                localStorage.setItem('active_pending_order', data.merchant_order_no);
+            } catch(e) {}
+
             const payAmtHeading = document.getElementById('pay-amount-heading');
             if (payAmtHeading) payAmtHeading.innerText = `₹${parseFloat(data.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })} INR`;
             
@@ -921,6 +1009,7 @@ async function initiateMPXPayInOrder() {
 
             window.open(data.payment_url, '_blank', 'width=500,height=750');
             startAutoLedgerPolling();
+            startOrderPolling(data.merchant_order_no);
         } else {
             alert('PayIn Error: ' + (data.message || 'Failed to initiate order'));
         }
@@ -1030,33 +1119,22 @@ async function loadUserTransactionLedger() {
                         ? '<span class="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">DEPOSIT</span>'
                         : '<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">CONVERT</span>';
 
-                    const isProcessing = tx.status === 'PROCESSING' || tx.status === 'PENDING';
+                    const isPendingApproval = tx.status === 'PENDING_ADMIN_APPROVAL';
+                    const isProcessing = tx.status === 'PROCESSING' || tx.status === 'PENDING' || isPendingApproval;
                     const isCompleted = tx.status === 'COMPLETED' || tx.status === 'PAID' || tx.status === 'SUCCESS';
 
-                    if (isConvert && isProcessing) {
+                    if (isProcessing) {
                         trackedProcessingOrders.add(tx.merchant_order_no);
-                    } else if (isConvert && isCompleted && trackedProcessingOrders.has(tx.merchant_order_no)) {
+                    } else if (isCompleted && trackedProcessingOrders.has(tx.merchant_order_no)) {
                         // Order completed! Remove from set and trigger success modal
                         trackedProcessingOrders.delete(tx.merchant_order_no);
-                        
-                        const inrElem = document.getElementById('modal-inr');
-                        const usdtElem = document.getElementById('modal-usdt');
-                        const addrElem = document.getElementById('modal-address');
-                        const utrElem = document.getElementById('modal-utr');
-                        const hashElem = document.getElementById('modal-txhash');
-
-                        if (inrElem) inrElem.innerText = `₹${parseFloat(tx.amount).toFixed(2)} INR`;
-                        if (usdtElem) usdtElem.innerText = `${tx.usdtAmount} USDT (BEP20)`;
-                        if (addrElem) addrElem.innerText = tx.binanceAddress || 'Saved Address';
-                        if (utrElem) utrElem.innerText = tx.utr || 'Confirmed';
-                        if (hashElem) hashElem.innerText = tx.txHash ? tx.txHash.substring(0, 14) + '...' : '0x9b3f...e82c';
-
-                        const modal = document.getElementById('success-modal');
-                        if (modal) modal.classList.remove('hidden');
+                        try { localStorage.removeItem('active_pending_order'); } catch(e) {}
+                        showOrderSuccessModal(tx);
+                        updateWalletBalanceDisplay();
                     }
 
                     // INR Amount Formatting
-                    const netAmt = tx.netAmount || tx.amount;
+                    const netAmt = tx.netAmount || (isDeposit ? (parseFloat(tx.amount) * 0.80).toFixed(2) : tx.amount);
                     const inrDisplay = isDeposit
                         ? `<span class="text-emerald-400 font-bold">+₹${parseFloat(netAmt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>`
                         : `<span class="text-slate-200 font-bold">-₹${parseFloat(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>`;
@@ -1068,7 +1146,9 @@ async function loadUserTransactionLedger() {
 
                     // Status Badge Markup
                     let statusMarkup = '';
-                    if (isProcessing) {
+                    if (isPendingApproval) {
+                        statusMarkup = `<span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 animate-pulse inline-flex items-center gap-1.5"><i class="fa-solid fa-clock text-[10px]"></i> Pending Approval</span>`;
+                    } else if (isProcessing) {
                         statusMarkup = isDeposit
                             ? `<span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 animate-pulse inline-flex items-center gap-1.5"><i class="fa-solid fa-spinner animate-spin text-[10px]"></i> Awaiting UPI...</span>`
                             : `<span class="px-2.5 py-1 text-[10px] font-extrabold rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 animate-pulse inline-flex items-center gap-1.5"><i class="fa-solid fa-spinner animate-spin text-[10px]"></i> Processing...</span>`;
@@ -1084,10 +1164,24 @@ async function loadUserTransactionLedger() {
                         `;
                     }
 
-                    // UTR Display
-                    const utrDisplay = isProcessing
-                        ? `<span class="text-amber-400/80 font-mono text-[11px]"><i class="fa-solid fa-clock mr-1"></i>Processing...</span>`
-                        : `<span class="text-slate-300 font-mono text-[11px]">${tx.utr || 'Confirmed'}</span>`;
+                    // UTR Display with 1-click submit button if pending
+                    let utrDisplay = '';
+                    if (isProcessing) {
+                        if (tx.utr) {
+                            utrDisplay = `<span class="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-bold font-mono text-[11px]">${tx.utr}</span>`;
+                        } else {
+                            utrDisplay = `
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-amber-400/80 font-mono text-[11px]"><i class="fa-solid fa-clock mr-1"></i>Awaiting...</span>
+                                    <button onclick="promptSubmitUtr('${tx.merchant_order_no}')" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded font-bold">
+                                        Enter UTR
+                                    </button>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        utrDisplay = `<span class="text-slate-300 font-mono text-[11px]">${tx.utr || 'Confirmed'}</span>`;
+                    }
 
                     // BSC TxHash Display
                     let txHashDisplay = '';
@@ -1130,32 +1224,164 @@ async function loadUserTransactionLedger() {
     }
 }
 
+function showOrderSuccessModal(tx) {
+    const isDeposit = tx.type === 'DEPOSIT' || tx.type === 'BUY';
+    const modal = document.getElementById('success-modal');
+    if (!modal) return;
+
+    const titleElem = document.getElementById('modal-title');
+    const subtitleElem = document.getElementById('modal-subtitle');
+    const inrLabel = document.getElementById('modal-inr-label');
+    const inrElem = document.getElementById('modal-inr');
+    const usdtLabel = document.getElementById('modal-usdt-label');
+    const usdtElem = document.getElementById('modal-usdt');
+    const utrLabel = document.getElementById('modal-utr-label');
+    const utrElem = document.getElementById('modal-utr');
+    const rowAddr = document.getElementById('row-modal-address');
+    const addrElem = document.getElementById('modal-address');
+    const rowHash = document.getElementById('row-modal-txhash');
+    const hashElem = document.getElementById('modal-txhash');
+
+    if (isDeposit) {
+        if (titleElem) titleElem.innerText = 'UPI Deposit Confirmed!';
+        if (subtitleElem) subtitleElem.innerText = 'Payment verified! Funds credited to your NexaPay Wallet balance.';
+        if (inrLabel) inrLabel.innerText = 'Gross Paid:';
+        if (inrElem) inrElem.innerText = `₹${parseFloat(tx.amount || 0).toFixed(2)} INR`;
+        if (usdtLabel) usdtLabel.innerText = 'Net Credited to Wallet:';
+        const netAmt = tx.netAmount || (parseFloat(tx.amount || 0) * 0.80).toFixed(2);
+        if (usdtElem) usdtElem.innerText = `+₹${parseFloat(netAmt).toFixed(2)} INR (+80%)`;
+        if (utrLabel) utrLabel.innerText = 'Gateway UTR / Ref:';
+        if (utrElem) utrElem.innerText = tx.utr || tx.transaction_id || 'CONFIRMED';
+        if (rowAddr) rowAddr.style.display = 'none';
+        if (rowHash) rowHash.style.display = 'none';
+    } else {
+        if (titleElem) titleElem.innerText = 'USDT Dispatched!';
+        if (subtitleElem) subtitleElem.innerText = 'USDT has been dispatched to your Binance BEP20 address.';
+        if (inrLabel) inrLabel.innerText = 'Amount Converted:';
+        if (inrElem) inrElem.innerText = `₹${parseFloat(tx.amount || 0).toFixed(2)} INR`;
+        if (usdtLabel) usdtLabel.innerText = 'USDT Received:';
+        if (usdtElem) usdtElem.innerText = `${tx.usdtAmount || '0.00'} USDT (BEP20)`;
+        if (utrLabel) utrLabel.innerText = 'Internal Ref / UTR:';
+        if (utrElem) utrElem.innerText = tx.utr || 'Confirmed';
+        if (rowAddr) {
+            rowAddr.style.display = 'flex';
+            if (addrElem) addrElem.innerText = tx.binanceAddress || 'Saved Address';
+        }
+        if (rowHash) {
+            rowHash.style.display = 'flex';
+            if (hashElem) hashElem.innerText = tx.txHash ? tx.txHash.substring(0, 14) + '...' : '0x9b3f...e82c';
+        }
+    }
+
+    modal.classList.remove('hidden');
+}
+
 // Poll order status until Webhook fires
 function startOrderPolling(orderNo) {
     if (currentPollInterval) clearInterval(currentPollInterval);
 
     currentPollInterval = setInterval(async () => {
         try {
-            const res = await fetch(`/api/check-order-status/${orderNo}`);
+            const res = await fetch(`/api/check-order-status/${encodeURIComponent(orderNo)}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.status === 1 && (data.orderStatus === 'PAID' || data.orderStatus === 'COMPLETED')) {
                     clearInterval(currentPollInterval);
-                    
-                    document.getElementById('modal-inr').innerText = `₹${data.amount} INR`;
-                    document.getElementById('modal-usdt').innerText = `${data.usdtAmount} USDT (BEP20)`;
-                    document.getElementById('modal-address').innerText = data.binanceAddress;
-                    document.getElementById('modal-utr').innerText = data.utr || 'Confirmed';
-                    document.getElementById('modal-txhash').innerText = data.txHash || '0x9b3f...e82c';
-
-                    document.getElementById('success-modal').classList.remove('hidden');
+                    trackedProcessingOrders.delete(orderNo);
+                    try { localStorage.removeItem('active_pending_order'); } catch(e) {}
+                    showOrderSuccessModal(data);
                     loadUserTransactionLedger();
+                    updateWalletBalanceDisplay();
                 }
             }
         } catch (e) {
             console.log('Polling error:', e);
         }
     }, 3000);
+}
+
+// Stuck Payment Claim Helpers
+function toggleClaimSection() {
+    const sec = document.getElementById('claim-utr-section');
+    const icon = document.getElementById('claim-toggle-icon');
+    if (sec) {
+        sec.classList.toggle('hidden');
+        if (icon) {
+            icon.innerHTML = sec.classList.contains('hidden') 
+                ? '<i class="fa-solid fa-chevron-down"></i>' 
+                : '<i class="fa-solid fa-chevron-up"></i>';
+        }
+    }
+}
+
+async function submitDepositUtrClaim(orderNo) {
+    const input = document.getElementById('claim-utr-input');
+    const utrVal = input ? input.value.trim() : '';
+    const activeOrder = orderNo || document.getElementById('mpx-order-ref')?.innerText?.trim()?.replace('#', '') || localStorage.getItem('active_pending_order');
+
+    if (!utrVal) {
+        alert('Please enter your Bank UTR or Gateway Transaction ID (e.g. W6101...)');
+        return;
+    }
+
+    const btn = document.getElementById('claim-utr-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Checking...';
+    }
+
+    try {
+        const res = await fetch('/api/claim-deposit-utr', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                orderNo: activeOrder,
+                utr: utrVal,
+                userEmail: currentUser ? currentUser.email : ''
+            })
+        });
+        const data = await res.json();
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = 'Verify UTR';
+        }
+
+        const msgElem = document.getElementById('claim-status-msg');
+        if (data.status === 1) {
+            if (msgElem) {
+                msgElem.className = 'text-[11px] text-emerald-400 font-semibold block';
+                msgElem.innerText = '✓ ' + (data.message || 'UTR recorded! Queued for Admin Verification.');
+            }
+            if (activeOrder) {
+                trackedProcessingOrders.add(activeOrder);
+                startOrderPolling(activeOrder);
+            }
+            loadUserTransactionLedger();
+            startAutoLedgerPolling();
+        } else {
+            if (msgElem) {
+                msgElem.className = 'text-[11px] text-red-400 font-semibold block';
+                msgElem.innerText = '⚠️ ' + (data.message || 'Submission failed.');
+            }
+        }
+    } catch(err) {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = 'Verify UTR';
+        }
+        alert('Connection error submitting UTR.');
+    }
+}
+
+function promptSubmitUtr(orderNo) {
+    const utr = prompt(`Enter Gateway Transaction ID or Bank UTR for ${orderNo}:`);
+    if (utr && utr.trim()) {
+        const input = document.getElementById('claim-utr-input');
+        if (input) input.value = utr.trim();
+        const orderRef = document.getElementById('mpx-order-ref');
+        if (orderRef) orderRef.innerText = orderNo;
+        submitDepositUtrClaim(orderNo);
+    }
 }
 
 function closeSuccessModal() {
