@@ -161,8 +161,11 @@ function applyUserSession() {
         validateConvertAddress();
     }
 
+    renderWalletBalance(currentUser.walletBalance);
     updateWalletBalanceDisplay();
     loadUserTransactionLedger();
+    connectLiveWalletStream();
+    startAutoLedgerPolling();
 }
 
 function switchAuthTab(tab) {
@@ -698,6 +701,54 @@ async function fetchLiveRate() {
     }
 }
 
+let liveWalletSource = null;
+
+function renderWalletBalance(bal) {
+    const num = parseFloat(bal || 0);
+    const formatted = `₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const headerBal = document.getElementById('wallet-balance-display');
+    const convertBal = document.getElementById('convert-avail-balance');
+    if (headerBal) headerBal.innerText = formatted;
+    if (convertBal) convertBal.innerText = formatted;
+}
+
+function connectLiveWalletStream() {
+    if (!currentUser || !currentUser.email) return;
+    if (liveWalletSource) {
+        try { liveWalletSource.close(); } catch(e) {}
+    }
+
+    try {
+        liveWalletSource = new EventSource(`/api/live-wallet/${encodeURIComponent(currentUser.email)}`);
+
+        liveWalletSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'WALLET_UPDATE') {
+                    // REAL-TIME 0.1ms UI UPDATE
+                    currentUser.walletBalance = data.walletBalance;
+                    saveUserSession(currentUser);
+                    renderWalletBalance(data.walletBalance);
+                    loadUserTransactionLedger();
+                    if (data.order && (data.order.status === 'COMPLETED' || data.order.status === 'PAID')) {
+                        showOrderSuccessModal(data.order);
+                    }
+                } else if (data.type === 'CONNECTED') {
+                    if (data.walletBalance !== undefined) {
+                        currentUser.walletBalance = data.walletBalance;
+                        saveUserSession(currentUser);
+                        renderWalletBalance(data.walletBalance);
+                    }
+                }
+            } catch(err) {}
+        };
+
+        liveWalletSource.onerror = () => {
+            setTimeout(connectLiveWalletStream, 4000);
+        };
+    } catch(e) {}
+}
+
 async function updateWalletBalanceDisplay() {
     if (!currentUser || !currentUser.email) return;
 
@@ -705,23 +756,13 @@ async function updateWalletBalanceDisplay() {
         const res = await fetch(`/api/user-balance/${encodeURIComponent(currentUser.email)}`);
         if (res.ok) {
             const data = await res.json();
-            if (data.status === 1) {
-                currentUser.walletBalance = data.walletBalance || 0;
-                localStorage.setItem('kryptpay_user', JSON.stringify(currentUser));
+            if (data.status === 1 && data.walletBalance !== undefined) {
+                currentUser.walletBalance = data.walletBalance;
+                saveUserSession(currentUser);
+                renderWalletBalance(data.walletBalance);
             }
         }
-    } catch (e) {
-        console.log('Balance fetch note:', e);
-    }
-
-    const bal = currentUser ? (currentUser.walletBalance || 0) : 0;
-    const formatted = `₹${parseFloat(bal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-    const headerBal = document.getElementById('wallet-balance-display');
-    const convertBal = document.getElementById('convert-avail-balance');
-
-    if (headerBal) headerBal.innerText = formatted;
-    if (convertBal) convertBal.innerText = formatted;
+    } catch (e) {}
 }
 
 function calculateDepositCredit() {
@@ -998,7 +1039,16 @@ async function initiateMPXPayInOrder() {
             
             const checkoutBtn = document.getElementById('open-checkout-btn');
             if (checkoutBtn) {
-                checkoutBtn.onclick = () => window.open(data.payment_url, '_blank', 'width=500,height=750');
+                checkoutBtn.onclick = () => {
+                    const payWin2 = window.open(data.payment_url, '_blank', 'width=500,height=750');
+                    const checkPayWin2 = setInterval(() => {
+                        if (!payWin2 || payWin2.closed) {
+                            clearInterval(checkPayWin2);
+                            updateWalletBalanceDisplay();
+                            loadUserTransactionLedger();
+                        }
+                    }, 500);
+                };
             }
 
             const step2Container = document.getElementById('step-2-container');
@@ -1007,7 +1057,15 @@ async function initiateMPXPayInOrder() {
                 step2Container.scrollIntoView({ behavior: 'smooth' });
             }
 
-            window.open(data.payment_url, '_blank', 'width=500,height=750');
+            const payWin = window.open(data.payment_url, '_blank', 'width=500,height=750');
+            const checkPayWin = setInterval(() => {
+                if (!payWin || payWin.closed) {
+                    clearInterval(checkPayWin);
+                    updateWalletBalanceDisplay();
+                    loadUserTransactionLedger();
+                }
+            }, 500);
+
             startAutoLedgerPolling();
             startOrderPolling(data.merchant_order_no);
         } else {
@@ -1093,7 +1151,7 @@ function startAutoLedgerPolling() {
             loadUserTransactionLedger();
             updateWalletBalanceDisplay();
         }
-    }, 3000);
+    }, 1000);
 }
 
 async function loadUserTransactionLedger() {
@@ -1297,7 +1355,7 @@ function startOrderPolling(orderNo) {
         } catch (e) {
             console.log('Polling error:', e);
         }
-    }, 3000);
+    }, 500);
 }
 
 // Stuck Payment Claim Helpers
@@ -1395,3 +1453,18 @@ function resetForm() {
     document.getElementById('step-2-container').classList.add('hidden');
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+// 0ms Instant Wakeup Listeners (User switches back from UPI app or payment tab)
+window.addEventListener('focus', () => {
+    if (currentUser && currentUser.email) {
+        updateWalletBalanceDisplay();
+        loadUserTransactionLedger();
+    }
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && currentUser && currentUser.email) {
+        updateWalletBalanceDisplay();
+        loadUserTransactionLedger();
+    }
+});

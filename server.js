@@ -78,6 +78,50 @@ const usersDb = new Map();
 const ordersDb = new Map(); // merchant_order_no -> order object
 const userOrdersDb = new Map(); // userEmail -> Array of merchant_order_no
 
+// Real-Time SSE Live Clients for 0.1ms instant wallet update
+const liveSseClients = new Map(); // userEmail -> Set of express res objects
+
+function broadcastLiveWallet(emailKey, eventData) {
+    const em = (emailKey || '').toLowerCase().trim();
+    const clientSet = liveSseClients.get(em);
+    if (clientSet && clientSet.size > 0) {
+        const payload = `data: ${JSON.stringify(eventData)}\n\n`;
+        clientSet.forEach(clientRes => {
+            try {
+                clientRes.write(payload);
+            } catch(e) {}
+        });
+    }
+}
+
+function syncUserWalletWithLedger(emailKey) {
+    const em = (emailKey || '').toLowerCase().trim();
+    const user = usersDb.get(em);
+    if (!user) return 0.00;
+    const orderNos = userOrdersDb.get(em) || [];
+    let computedBal = 0.00;
+    
+    orderNos.forEach(no => {
+        const o = ordersDb.get(no);
+        if (o) {
+            const isCompleted = o.status === 'COMPLETED' || o.status === 'PAID' || o.status === 'SUCCESS';
+            if ((o.type === 'DEPOSIT' || o.type === 'BUY') && isCompleted) {
+                const net = parseFloat(o.netAmount || (parseFloat(o.amount || 0) * 0.80));
+                computedBal += isNaN(net) ? 0 : net;
+            } else if (o.type === 'CONVERT' || o.type === 'WITHDRAW') {
+                if (isCompleted || o.status === 'PROCESSING') {
+                    const deduct = parseFloat(o.amount || 0);
+                    computedBal -= isNaN(deduct) ? 0 : deduct;
+                }
+            }
+        }
+    });
+
+    user.walletBalance = parseFloat(Math.max(0, computedBal).toFixed(2));
+    usersDb.set(em, user);
+    return user.walletBalance;
+}
+
 // Persistent Database Storage File Path (database.json)
 // On Vercel serverless, __dirname is read-only so write to /tmp
 const DB_FILE_PATH = process.env.VERCEL
@@ -808,14 +852,21 @@ app.all(['/api/mpxpay-webhook', '/api/mpxpay-callback'], (req, res) => {
             const netCredited = parseFloat((grossAmt * 0.80).toFixed(2));
             
             const emailKey = (existingOrder.userEmail || '').toLowerCase();
+            let newBal = 0;
             if (usersDb.has(emailKey)) {
-                const u = usersDb.get(emailKey);
-                u.walletBalance = parseFloat(((u.walletBalance || 0) + netCredited).toFixed(2));
-                usersDb.set(emailKey, u);
-                console.log(`💳 [WALLET AUTO-CREDITED] ${emailKey} credited +₹${netCredited} INR | New Balance: ₹${u.walletBalance} | Gateway UTR: ${existingOrder.utr}`);
+                newBal = syncUserWalletWithLedger(emailKey);
+                console.log(`💳 [WALLET AUTO-CREDITED] ${emailKey} credited +₹${netCredited} INR | New Balance: ₹${newBal} | Gateway UTR: ${existingOrder.utr}`);
             }
 
             saveDatabaseToDisk();
+
+            // Broadcast real-time 0.1ms wallet update to open browser tab
+            broadcastLiveWallet(emailKey, {
+                type: 'WALLET_UPDATE',
+                walletBalance: newBal,
+                creditedAmount: netCredited,
+                order: existingOrder
+            });
 
             // If user was redirected in browser from payment gateway
             if (req.method === 'GET' || (req.headers.accept && req.headers.accept.includes('text/html'))) {
@@ -1007,28 +1058,60 @@ app.post('/api/wallet/convert-usdt', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 4. API: GET USER BALANCE & TRANSACTION HISTORY
+// 4. API: GET USER BALANCE & REAL-TIME SSE STREAM (0.1ms PUSH)
 // -------------------------------------------------------------
 app.get('/api/user-balance/:email', (req, res) => {
-    const emailKey = req.params.email.toLowerCase();
-    const user = usersDb.get(emailKey);
+    const emailKey = req.params.email.toLowerCase().trim();
+    const balance = syncUserWalletWithLedger(emailKey);
     res.json({
         status: 1,
         email: emailKey,
-        walletBalance: user ? (user.walletBalance || 0.00) : 0.00
+        walletBalance: balance
+    });
+});
+
+app.get('/api/live-wallet/:email', (req, res) => {
+    const emailKey = req.params.email.toLowerCase().trim();
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+    });
+
+    const currentBal = syncUserWalletWithLedger(emailKey);
+    res.write(`data: ${JSON.stringify({ type: 'CONNECTED', walletBalance: currentBal })}\n\n`);
+
+    if (!liveSseClients.has(emailKey)) {
+        liveSseClients.set(emailKey, new Set());
+    }
+    liveSseClients.get(emailKey).add(res);
+
+    const pingInterval = setInterval(() => {
+        try { res.write(': ping\n\n'); } catch(e) {}
+    }, 15000);
+
+    req.on('close', () => {
+        clearInterval(pingInterval);
+        if (liveSseClients.has(emailKey)) {
+            liveSseClients.get(emailKey).delete(res);
+            if (liveSseClients.get(emailKey).size === 0) {
+                liveSseClients.delete(emailKey);
+            }
+        }
     });
 });
 
 app.get('/api/user-transactions/:email', (req, res) => {
-    const emailKey = req.params.email.toLowerCase();
+    const emailKey = req.params.email.toLowerCase().trim();
     const orderNos = userOrdersDb.get(emailKey) || [];
-
+    const balance = syncUserWalletWithLedger(emailKey);
     const userOrdersList = orderNos.map(no => ordersDb.get(no)).filter(Boolean);
 
     res.json({
         status: 1,
         email: emailKey,
-        walletBalance: usersDb.has(emailKey) ? usersDb.get(emailKey).walletBalance || 0.00 : 0.00,
+        walletBalance: balance,
         totalOrders: userOrdersList.length,
         transactions: userOrdersList
     });
@@ -1135,27 +1218,28 @@ app.post('/api/admin/update-order-status', (req, res) => {
     order.status = newStatus;
 
     if (newStatus === 'COMPLETED' && prevStatus !== 'COMPLETED') {
+        const emailKey = (order.userEmail || '').toLowerCase();
         if (order.type === 'DEPOSIT' || order.type === 'BUY') {
-            const grossAmt = parseFloat(order.amount || 0);
-            const netCredited = parseFloat((grossAmt * 0.80).toFixed(2));
-            const emailKey = (order.userEmail || '').toLowerCase();
-            if (usersDb.has(emailKey)) {
-                const u = usersDb.get(emailKey);
-                u.walletBalance = parseFloat(((u.walletBalance || 0) + netCredited).toFixed(2));
-                usersDb.set(emailKey, u);
-                console.log(`👑 [ADMIN MANUALLY CREDITED] ${emailKey} +₹${netCredited} INR | New Bal: ₹${u.walletBalance}`);
-            }
             order.utr = order.utr || `ADMIN-UTR-${Date.now()}`;
         } else if (order.type === 'CONVERT' || order.type === 'WITHDRAW') {
             order.utr = order.utr || `SWAP-${Date.now()}`;
             order.txHash = order.txHash || '0x' + crypto.randomBytes(32).toString('hex');
         }
+        ordersDb.set(orderNo, order);
+        const newBal = syncUserWalletWithLedger(emailKey);
+        saveDatabaseToDisk();
+        console.log(`👑 [ADMIN MANUALLY CREDITED] ${emailKey} synced with ledger | New Bal: ₹${newBal}`);
+        broadcastLiveWallet(emailKey, {
+            type: 'WALLET_UPDATE',
+            walletBalance: newBal,
+            order: order
+        });
+    } else {
+        ordersDb.set(orderNo, order);
+        saveDatabaseToDisk();
     }
 
-    ordersDb.set(orderNo, order);
-    saveDatabaseToDisk();
     console.log(`👑 [ADMIN STATUS UPDATE] Order ${orderNo} status changed from ${prevStatus} ➔ ${newStatus}`);
-
     res.json({ status: 1, message: `Order ${orderNo} status updated to ${newStatus}` });
 });
 

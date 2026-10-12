@@ -1,5 +1,5 @@
 {
-  "saved_at": "2026-10-12T01:05:00.000Z",
+  "saved_at": "2026-10-12T01:20:00.000Z",
   "users": [
     [
       "persistentuser@kryptpay.com",
@@ -24,7 +24,7 @@
         "isVerified": true,
         "otpCode": null,
         "otpExpires": null,
-        "walletBalance": 0.00,
+        "walletBalance": 800.00,
         "picture": "https://lh3.googleusercontent.com/a/ACg8ocLNxCDNo2OKnWarqc2jufLtdC9AC6s0pnFkXUyacVHXXFAtdw=s96-c"
       }
     ]
@@ -36,32 +36,16 @@
         "merchant_order_no": "KP-BUY-1791766158775-6159",
         "type": "DEPOSIT",
         "amount": "1000.00",
-        "feeTotal": "210.00",
+        "feeTotal": "200.00",
         "netAmount": "800.00",
         "usdtAmount": "0.00",
         "binanceAddress": "0xd50a134b9603512da74c2274fc479006e47a9957",
         "userEmail": "anibunny2387@gmail.com",
-        "status": "PENDING_ADMIN_APPROVAL",
+        "status": "COMPLETED",
         "utr": "W61012061919246444945a362",
         "txHash": null,
-        "created_at": "2026-10-12T00:49:18.000Z"
-      }
-    ],
-    [
-      "KP-BUY-1791388572309-3199",
-      {
-        "merchant_order_no": "KP-BUY-1791388572309-3199",
-        "type": "DEPOSIT",
-        "amount": "500.00",
-        "feeTotal": "110.00",
-        "netAmount": "390.00",
-        "usdtAmount": "0.00",
-        "binanceAddress": "0xd50a134b9603512da74c2274fc479006e47a9957",
-        "userEmail": "anibunny2387@gmail.com",
-        "status": "COMPLETED",
-        "utr": "412200988712",
-        "txHash": null,
-        "created_at": "2026-10-07T15:56:12.344Z"
+        "created_at": "2026-10-12T00:49:18.000Z",
+        "paid_at": "2026-10-12T01:17:50.000Z"
       }
     ]
   ],
@@ -69,8 +53,7 @@
     [
       "anibunny2387@gmail.com",
       [
-        "KP-BUY-1791766158775-6159",
-        "KP-BUY-1791388572309-3199"
+        "KP-BUY-1791766158775-6159"
       ]
     ]
   ]
