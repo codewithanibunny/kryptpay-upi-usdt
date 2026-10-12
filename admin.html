@@ -466,14 +466,25 @@
 
                 let utrCell = '';
                 if (isWithdraw) {
-                    utrCell = `
-                        <div class="text-[10px] leading-tight text-purple-200">
-                            <span class="font-bold text-white">${o.bankName || 'Bank'}</span><br/>
-                            <span class="font-mono text-slate-300">A/C: ${o.accountNumber || '-'}</span><br/>
-                            <span class="font-mono text-amber-300">${o.ifscCode || '-'}</span> • <span class="text-slate-400">${o.accountHolderName || '-'}</span>
-                            ${o.utr ? `<br/><span class="text-emerald-400 font-mono text-[9px] font-bold">UTR: ${o.utr}</span>` : ''}
-                        </div>
-                    `;
+                    if (o.payoutMethod === 'UPI' || o.upiId) {
+                        utrCell = `
+                            <div class="text-[10px] leading-tight text-purple-200">
+                                <span class="bg-purple-500/20 text-purple-300 font-bold px-1.5 py-0.5 rounded text-[9px]">UPI PAYOUT</span><br/>
+                                <span class="font-mono font-bold text-amber-300">${o.upiId || o.accountNumber}</span><br/>
+                                <span class="text-slate-300 font-sans">${o.accountHolderName || '-'}</span>
+                                ${o.utr ? `<br/><span class="text-emerald-400 font-mono text-[9px] font-bold">UTR: ${o.utr}</span>` : ''}
+                            </div>
+                        `;
+                    } else {
+                        utrCell = `
+                            <div class="text-[10px] leading-tight text-purple-200">
+                                <span class="font-bold text-white">${o.bankName || 'Bank'}</span><br/>
+                                <span class="font-mono text-slate-300">A/C: ${o.accountNumber || '-'}</span><br/>
+                                <span class="font-mono text-amber-300">${o.ifscCode || '-'}</span> • <span class="text-slate-400">${o.accountHolderName || '-'}</span>
+                                ${o.utr ? `<br/><span class="text-emerald-400 font-mono text-[9px] font-bold">UTR: ${o.utr}</span>` : ''}
+                            </div>
+                        `;
+                    }
                 } else if (o.utr) {
                     utrCell = `<span class="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-bold font-mono text-[11px]">${o.utr}</span>`;
                 } else {

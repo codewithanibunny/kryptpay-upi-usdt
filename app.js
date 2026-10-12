@@ -1093,8 +1093,33 @@ async function initiateMPXPayInOrder() {
 }
 
 // ------------------------------------------------------------------
-// WITHDRAWAL / PAYOUT HANDLER (SELL USDT OR WALLET INR TO BANK)
+// WITHDRAWAL / PAYOUT HANDLER (UPI OR BANK ACCOUNT)
 // ------------------------------------------------------------------
+let activePayoutMethod = 'UPI';
+
+function selectPayoutMethod(method) {
+    activePayoutMethod = method;
+    const upiBtn = document.getElementById('method-btn-upi');
+    const bankBtn = document.getElementById('method-btn-bank');
+    const upiContainer = document.getElementById('payout-upi-container');
+    const bankContainer = document.getElementById('payout-bank-container');
+    const btnText = document.getElementById('payout-btn-text');
+
+    if (method === 'UPI') {
+        if (upiBtn) upiBtn.className = "py-2.5 px-3 rounded-xl text-xs font-bold bg-purple-600 text-white shadow-md flex items-center justify-center gap-1.5 transition-all";
+        if (bankBtn) bankBtn.className = "py-2.5 px-3 rounded-xl text-xs font-bold text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
+        if (upiContainer) upiContainer.classList.remove('hidden');
+        if (bankContainer) bankContainer.classList.add('hidden');
+        if (btnText) btnText.innerText = 'SUBMIT UPI WITHDRAWAL';
+    } else {
+        if (upiBtn) upiBtn.className = "py-2.5 px-3 rounded-xl text-xs font-bold text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all";
+        if (bankBtn) bankBtn.className = "py-2.5 px-3 rounded-xl text-xs font-bold bg-purple-600 text-white shadow-md flex items-center justify-center gap-1.5 transition-all";
+        if (upiContainer) upiContainer.classList.add('hidden');
+        if (bankContainer) bankContainer.classList.remove('hidden');
+        if (btnText) btnText.innerText = 'SUBMIT BANK WITHDRAWAL';
+    }
+}
+
 function setWithdrawMaxAmount() {
     const bal = currentUser ? (currentUser.walletBalance || 0) : 0;
     const input = document.getElementById('withdraw-inr-amount');
@@ -1108,18 +1133,9 @@ async function handleWithdrawalSubmit(e) {
 
     const inrInput = document.getElementById('withdraw-inr-amount');
     const inrAmount = inrInput ? parseFloat(inrInput.value) : 0;
-    const bankName = document.getElementById('payout-bank-name').value.trim();
-    const accountHolderName = document.getElementById('payout-holder-name').value.trim();
-    const accountNumber = document.getElementById('payout-account-no').value.trim();
-    const ifscCode = document.getElementById('payout-ifsc').value.trim();
 
-    if (isNaN(inrAmount) || inrAmount < 500) {
-        alert('Minimum bank withdrawal amount is ₹500 INR.');
-        return;
-    }
-
-    if (!accountNumber || !ifscCode || !accountHolderName) {
-        alert('Please fill in all bank account details for withdrawal.');
+    if (isNaN(inrAmount) || inrAmount < 100) {
+        alert('Minimum withdrawal amount is ₹100 INR.');
         return;
     }
 
@@ -1129,23 +1145,55 @@ async function handleWithdrawalSubmit(e) {
         return;
     }
 
+    let payload = {
+        inrAmount: inrAmount,
+        userEmail: currentUser ? currentUser.email : 'user@kryptpay.com',
+        payoutMethod: activePayoutMethod
+    };
+
+    if (activePayoutMethod === 'UPI') {
+        const upiId = document.getElementById('payout-upi-id') ? document.getElementById('payout-upi-id').value.trim() : '';
+        const holderName = document.getElementById('payout-upi-holder-name') ? document.getElementById('payout-upi-holder-name').value.trim() : '';
+
+        if (!upiId || !upiId.includes('@')) {
+            alert('Please enter a valid UPI ID (e.g. 9876543210@paytm or yourname@upi).');
+            return;
+        }
+        if (!holderName) {
+            alert('Please enter your Name as on UPI.');
+            return;
+        }
+
+        payload.upiId = upiId;
+        payload.accountHolderName = holderName;
+        payload.bankName = 'UPI Transfer';
+    } else {
+        const bankName = document.getElementById('payout-bank-name').value.trim();
+        const accountHolderName = document.getElementById('payout-holder-name').value.trim();
+        const accountNumber = document.getElementById('payout-account-no').value.trim();
+        const ifscCode = document.getElementById('payout-ifsc').value.trim();
+
+        if (!accountNumber || !ifscCode || !accountHolderName) {
+            alert('Please fill in all bank account details for withdrawal.');
+            return;
+        }
+
+        payload.bankName = bankName || 'Bank Account';
+        payload.accountNumber = accountNumber;
+        payload.ifscCode = ifscCode;
+        payload.accountHolderName = accountHolderName;
+    }
+
     const payoutBtn = document.getElementById('payout-btn');
     const origText = payoutBtn.innerHTML;
     payoutBtn.disabled = true;
-    payoutBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Submitting Bank Withdrawal...`;
+    payoutBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Submitting Withdrawal...`;
 
     try {
         const res = await fetch('/api/create-payout-order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                inrAmount: inrAmount,
-                userEmail: currentUser ? currentUser.email : 'user@kryptpay.com',
-                bankName: bankName,
-                accountHolderName: accountHolderName,
-                accountNumber: accountNumber,
-                ifscCode: ifscCode
-            })
+            body: JSON.stringify(payload)
         });
 
         const data = await res.json();
@@ -1153,7 +1201,8 @@ async function handleWithdrawalSubmit(e) {
         payoutBtn.innerHTML = origText;
 
         if (data.status === 1) {
-            alert(`✅ Withdrawal Request Submitted!\nOrder ID: ${data.merchant_order_no}\nNet Payout: ₹${data.inrAmount} INR\nSettlement Status: Processing`);
+            const dest = activePayoutMethod === 'UPI' ? payload.upiId : `${payload.bankName} (${payload.accountNumber})`;
+            alert(`✅ Withdrawal Request Submitted!\nOrder ID: ${data.merchant_order_no}\nNet Payout: ₹${data.inrAmount} INR\nDestination: ${dest}\nSettlement Status: Processing`);
             if (data.newBalance !== undefined && currentUser) {
                 currentUser.walletBalance = data.newBalance;
                 renderWalletBalance(data.newBalance);
@@ -1269,11 +1318,13 @@ async function loadUserTransactionLedger() {
                         `;
                     }
 
-                    // UTR / Bank Details Display
+                    // UTR / Destination Details Display
                     let utrDisplay = '';
                     if (isWithdraw) {
                         if (tx.utr) {
                             utrDisplay = `<span class="bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded font-bold font-mono text-[11px]">${tx.utr}</span>`;
+                        } else if (tx.payoutMethod === 'UPI' || tx.upiId) {
+                            utrDisplay = `<span class="bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-mono text-[10px] font-bold">UPI: ${tx.upiId || tx.accountNumber}</span>`;
                         } else {
                             utrDisplay = `<span class="text-purple-300 font-mono text-[11px]">${tx.bankName || 'Bank'} A/C</span>`;
                         }
@@ -1294,10 +1345,14 @@ async function loadUserTransactionLedger() {
                         utrDisplay = `<span class="text-slate-300 font-mono text-[11px]">${tx.utr || 'Confirmed'}</span>`;
                     }
 
-                    // BSC TxHash / Bank Details Display
+                    // BSC TxHash / Destination Details Display
                     let txHashDisplay = '';
                     if (isWithdraw) {
-                        txHashDisplay = `<span class="text-purple-300/80 font-mono text-[11px]">${tx.accountNumber ? 'A/C: ...' + tx.accountNumber.slice(-4) + ' (' + (tx.ifscCode || '') + ')' : 'Bank IMPS'}</span>`;
+                        if (tx.payoutMethod === 'UPI' || tx.upiId) {
+                            txHashDisplay = `<span class="text-purple-300 font-mono text-[11px]">UPI: ${tx.upiId || tx.accountNumber}</span>`;
+                        } else {
+                            txHashDisplay = `<span class="text-purple-300/80 font-mono text-[11px]">${tx.accountNumber ? 'A/C: ...' + tx.accountNumber.slice(-4) + ' (' + (tx.ifscCode || '') + ')' : 'Bank IMPS'}</span>`;
+                        }
                     } else if (isDeposit) {
                         txHashDisplay = `<span class="text-slate-500 font-mono text-[11px]">- (In Wallet)</span>`;
                     } else if (isProcessing) {

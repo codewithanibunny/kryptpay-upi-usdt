@@ -1058,14 +1058,26 @@ app.post('/api/wallet/convert-usdt', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 3B. API: CREATE PAYOUT / BANK WITHDRAWAL ORDER
+// 3B. API: CREATE PAYOUT / WITHDRAWAL ORDER (UPI OR BANK)
 // -------------------------------------------------------------
 app.post('/api/create-payout-order', async (req, res) => {
     try {
-        const { userEmail, usdtAmount, inrAmount, bankName, accountNumber, ifscCode, accountHolderName } = req.body;
+        const { userEmail, usdtAmount, inrAmount, payoutMethod, upiId, bankName, accountNumber, ifscCode, accountHolderName } = req.body;
 
-        if (!accountNumber || !ifscCode || !accountHolderName) {
-            return res.status(400).json({ status: 0, message: 'Please provide all bank account details (Bank, Account No, IFSC, Holder Name).' });
+        const isUpiPayout = payoutMethod === 'UPI' || (upiId && !accountNumber);
+
+        if (isUpiPayout) {
+            if (!upiId || !upiId.includes('@')) {
+                return res.status(400).json({ status: 0, message: 'Please provide a valid UPI ID (e.g. yourname@upi).' });
+            }
+        } else {
+            if (!accountNumber || !ifscCode) {
+                return res.status(400).json({ status: 0, message: 'Please provide Bank Account Number and IFSC Code.' });
+            }
+        }
+
+        if (!accountHolderName) {
+            return res.status(400).json({ status: 0, message: 'Please provide the Account / UPI Holder Name.' });
         }
 
         const emailKey = (userEmail || 'guest@kryptpay.com').toLowerCase().trim();
@@ -1083,8 +1095,8 @@ app.post('/api/create-payout-order', async (req, res) => {
             }
         }
 
-        if (isNaN(withdrawInr) || withdrawInr < 500) {
-            return res.status(400).json({ status: 0, message: 'Minimum bank withdrawal amount is ₹500 INR.' });
+        if (isNaN(withdrawInr) || withdrawInr < 100) {
+            return res.status(400).json({ status: 0, message: 'Minimum withdrawal amount is ₹100 INR.' });
         }
 
         const currentBal = user.walletBalance || 0;
@@ -1100,13 +1112,15 @@ app.post('/api/create-payout-order', async (req, res) => {
         const payoutOrder = {
             merchant_order_no: merchantOrderNo,
             type: 'WITHDRAW',
+            payoutMethod: isUpiPayout ? 'UPI' : 'BANK',
             amount: withdrawInr.toFixed(2),
             usdtAmount: (withdrawInr / 89.50).toFixed(2),
             userEmail: emailKey,
-            bankName: bankName || 'Bank Account',
-            accountNumber: accountNumber,
-            ifscCode: ifscCode.toUpperCase().trim(),
-            accountHolderName: accountHolderName,
+            upiId: isUpiPayout ? upiId.trim() : null,
+            bankName: isUpiPayout ? 'UPI Transfer' : (bankName || 'Bank Account'),
+            accountNumber: isUpiPayout ? upiId.trim() : accountNumber.trim(),
+            ifscCode: isUpiPayout ? 'UPI' : (ifscCode || '').toUpperCase().trim(),
+            accountHolderName: accountHolderName.trim(),
             status: 'PROCESSING',
             utr: null,
             txHash: null,
