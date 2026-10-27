@@ -820,9 +820,9 @@ function setConvertMaxAmount() {
     const input = document.getElementById('convert-inr-amount');
     if (input) {
         const maxMultipleOf100 = Math.floor(bal / 100) * 100;
-        if (maxMultipleOf100 < 100) {
-            alert(`Available wallet balance (₹${bal.toFixed(2)}) is below the minimum ₹100 conversion requirement.`);
-            input.value = 100;
+        if (maxMultipleOf100 < 50000) {
+            alert(`Available wallet balance (₹${bal.toFixed(2)}) is below the minimum ₹50,000 conversion requirement.`);
+            input.value = 50000;
         } else {
             input.value = maxMultipleOf100;
         }
@@ -883,8 +883,8 @@ async function submitWalletConversion() {
     const inrVal = parseFloat(inrInput ? inrInput.value : 0);
     const address = addrInput ? addrInput.value.trim() : '';
 
-    if (isNaN(inrVal) || inrVal < 100) {
-        alert('Minimum USDT conversion amount is ₹100 INR.');
+    if (isNaN(inrVal) || inrVal < 50000) {
+        alert('Minimum USDT conversion amount is ₹50,000 INR.');
         return;
     }
 

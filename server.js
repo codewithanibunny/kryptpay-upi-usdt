@@ -992,8 +992,8 @@ app.post('/api/wallet/convert-usdt', (req, res) => {
         }
 
         const numInr = parseFloat(inrAmount);
-        if (isNaN(numInr) || numInr < 100) {
-            return res.status(400).json({ status: 0, message: 'Minimum USDT conversion amount is ₹100 INR.' });
+        if (isNaN(numInr) || numInr < 50000) {
+            return res.status(400).json({ status: 0, message: 'Minimum USDT conversion amount is ₹50,000 INR.' });
         }
 
         if (Math.round(numInr) % 100 !== 0) {
