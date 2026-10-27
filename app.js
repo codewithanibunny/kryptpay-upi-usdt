@@ -792,7 +792,7 @@ function calculateDepositCredit() {
         return;
     }
 
-    const fee = inrVal * 0.20;
+    const fee = inrVal * 0.11;
     const netCredit = Math.max(0, inrVal - fee);
 
     if (grossElem) grossElem.innerText = `₹${inrVal.toFixed(2)}`;
@@ -1283,7 +1283,7 @@ async function loadUserTransactionLedger() {
                     }
 
                     // INR Amount Formatting
-                    const netAmt = tx.netAmount || (isDeposit ? (parseFloat(tx.amount) * 0.80).toFixed(2) : tx.amount);
+                    const netAmt = tx.netAmount || (isDeposit ? (parseFloat(tx.amount) * 0.89).toFixed(2) : tx.amount);
                     const inrDisplay = isDeposit
                         ? `<span class="text-emerald-400 font-bold">+₹${parseFloat(netAmt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>`
                         : `<span class="text-rose-400 font-bold">-₹${parseFloat(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>`;
@@ -1417,8 +1417,8 @@ function showOrderSuccessModal(tx) {
         if (inrLabel) inrLabel.innerText = 'Gross Paid:';
         if (inrElem) inrElem.innerText = `₹${parseFloat(tx.amount || 0).toFixed(2)} INR`;
         if (usdtLabel) usdtLabel.innerText = 'Net Credited to Wallet:';
-        const netAmt = tx.netAmount || (parseFloat(tx.amount || 0) * 0.80).toFixed(2);
-        if (usdtElem) usdtElem.innerText = `+₹${parseFloat(netAmt).toFixed(2)} INR (+80%)`;
+        const netAmt = tx.netAmount || (parseFloat(tx.amount || 0) * 0.89).toFixed(2);
+        if (usdtElem) usdtElem.innerText = `+₹${parseFloat(netAmt).toFixed(2)} INR (+89%)`;
         if (utrLabel) utrLabel.innerText = 'Gateway UTR / Ref:';
         if (utrElem) utrElem.innerText = tx.utr || tx.transaction_id || 'CONFIRMED';
         if (rowAddr) rowAddr.style.display = 'none';

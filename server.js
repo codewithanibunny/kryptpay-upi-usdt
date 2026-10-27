@@ -78,7 +78,7 @@ const MPX_CONFIG = {
     payInEndpoint: 'https://api.mpxpayss.com/api/payIn',
     callbackUrl: process.env.MPX_CALLBACK_URL || 'https://nexapay-ashen.vercel.app/api/mpxpay-webhook',
     // Fee Rates
-    collectionFeeRatePercent: 20.00, // 20%
+    collectionFeeRatePercent: 11.00, // 11%
     additionalFeeInr: 10.00         // ₹10.00
 };
 
@@ -117,7 +117,7 @@ function syncUserWalletWithLedger(emailKey) {
         if (o) {
             const isCompleted = o.status === 'COMPLETED' || o.status === 'PAID' || o.status === 'SUCCESS';
             if ((o.type === 'DEPOSIT' || o.type === 'BUY') && isCompleted) {
-                const net = parseFloat(o.netAmount || (parseFloat(o.amount || 0) * 0.80));
+                const net = parseFloat(o.netAmount || (parseFloat(o.amount || 0) * 0.89));
                 computedBal += isNaN(net) ? 0 : net;
             } else if (o.type === 'CONVERT' || o.type === 'WITHDRAW') {
                 if (isCompleted || o.status === 'PROCESSING') {
@@ -833,7 +833,7 @@ app.all(['/api/mpxpay-webhook', '/api/mpxpay-callback'], (req, res) => {
                 type: 'DEPOSIT',
                 amount: amount || '1000.00',
                 feeTotal: '200.00',
-                netAmount: (parseFloat(amount || 1000) * 0.80).toFixed(2),
+                netAmount: (parseFloat(amount || 1000) * 0.89).toFixed(2),
                 usdtAmount: '0.00',
                 binanceAddress: '',
                 userEmail: 'guest@kryptpay.com',
@@ -858,9 +858,9 @@ app.all(['/api/mpxpay-webhook', '/api/mpxpay-callback'], (req, res) => {
 
             ordersDb.set(merchant_order_no, existingOrder);
 
-            // Auto-Credit INR to User Wallet Balance (Net Amount after 20% fee)
+            // Auto-Credit INR to User Wallet Balance (Net Amount after 11% fee)
             const grossAmt = parseFloat(amount || existingOrder.amount || 0);
-            const netCredited = parseFloat((grossAmt * 0.80).toFixed(2));
+            const netCredited = parseFloat((grossAmt * 0.89).toFixed(2));
             
             const emailKey = (existingOrder.userEmail || '').toLowerCase();
             let newBal = 0;
@@ -1299,7 +1299,7 @@ app.get('/api/admin/data', (req, res) => {
             if (o.type === 'DEPOSIT' || o.type === 'BUY') {
                 const gross = parseFloat(o.amount || 0);
                 totalDepositsGross += gross;
-                totalFeesEarned += gross * 0.20;
+                totalFeesEarned += gross * 0.11;
             } else if (o.type === 'CONVERT' || o.type === 'WITHDRAW') {
                 totalUsdtDispatched += parseFloat(o.usdtAmount || 0);
             }
