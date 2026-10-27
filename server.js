@@ -39,6 +39,17 @@ app.use((req, res, next) => {
 
 app.use(express.urlencoded({ extended: true }));
 
+// In-flight database reload helper for serverless instances
+app.use((req, res, next) => {
+    // If handling API requests, ensure latest persistent state is loaded
+    if (req.path.startsWith('/api/')) {
+        try {
+            loadDatabaseFromDisk();
+        } catch(e) {}
+    }
+    next();
+});
+
 // Serve static frontend files and explicit HTML routes
 app.use(express.static(path.join(__dirname, '/')));
 

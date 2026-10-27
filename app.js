@@ -1394,6 +1394,7 @@ async function loadUserTransactionLedger() {
 
 function showOrderSuccessModal(tx) {
     const isDeposit = tx.type === 'DEPOSIT' || tx.type === 'BUY';
+    const isWithdraw = tx.type === 'WITHDRAW';
     const modal = document.getElementById('success-modal');
     if (!modal) return;
 
@@ -1420,6 +1421,17 @@ function showOrderSuccessModal(tx) {
         if (usdtElem) usdtElem.innerText = `+₹${parseFloat(netAmt).toFixed(2)} INR (+80%)`;
         if (utrLabel) utrLabel.innerText = 'Gateway UTR / Ref:';
         if (utrElem) utrElem.innerText = tx.utr || tx.transaction_id || 'CONFIRMED';
+        if (rowAddr) rowAddr.style.display = 'none';
+        if (rowHash) rowHash.style.display = 'none';
+    } else if (isWithdraw) {
+        if (titleElem) titleElem.innerText = 'Withdrawal Processed!';
+        if (subtitleElem) subtitleElem.innerText = 'Your payout has been transferred successfully.';
+        if (inrLabel) inrLabel.innerText = 'Payout Amount:';
+        if (inrElem) inrElem.innerText = `₹${parseFloat(tx.amount || 0).toFixed(2)} INR`;
+        if (usdtLabel) usdtLabel.innerText = 'Destination:';
+        if (usdtElem) usdtElem.innerText = tx.payoutMethod === 'UPI' || tx.upiId ? `UPI: ${tx.upiId || tx.accountNumber}` : `Bank: ${tx.accountNumber}`;
+        if (utrLabel) utrLabel.innerText = 'Bank / Payout Ref:';
+        if (utrElem) utrElem.innerText = tx.utr || 'COMPLETED';
         if (rowAddr) rowAddr.style.display = 'none';
         if (rowHash) rowHash.style.display = 'none';
     } else {
