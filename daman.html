@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DAMAN VIP GAMES • Color Prediction & Lottery</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        daman: {
+                            red: '#F95959',
+                            darkRed: '#D63031',
+                            crimson: '#C02626',
+                            cardBg: '#2B1113',
+                            appBg: '#180A0B',
+                            green: '#18B660',
+                            violet: '#B183F6',
+                            gold: '#F5B041',
+                            darkGold: '#D48806'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* Custom scrollbar & mobile frame */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(249, 89, 89, 0.3); border-radius: 9999px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+
+        body {
+            background: #0f0506;
+            color: #ffffff;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Inter', -apple-system, sans-serif;
+        }
+
+        /* Daman Number Balls Styling */
+        .ball-0 { background: linear-gradient(135deg, #F95959 50%, #B183F6 50%); }
+        .ball-5 { background: linear-gradient(135deg, #18B660 50%, #B183F6 50%); }
+        .ball-green { background: #18B660; }
+        .ball-red { background: #F95959; }
+
+        /* Pulse glow for countdown */
+        @keyframes urgentPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.08); opacity: 0.85; filter: drop-shadow(0 0 12px #F95959); }
+        }
+        .urgent-timer {
+            animation: urgentPulse 0.8s infinite ease-in-out;
+            color: #F95959 !important;
+        }
+
+        /* Glassmorphism card */
+        .daman-card {
+            background: linear-gradient(145deg, rgba(50, 16, 20, 0.95), rgba(30, 10, 12, 0.98));
+            border: 1px solid rgba(249, 89, 89, 0.18);
+            box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Gold gradient text */
+        .gold-text {
+            background: linear-gradient(135deg, #FFE082 0%, #F5B041 50%, #D48806 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Tab active indicator */
+        .active-tab {
+            background: linear-gradient(135deg, #F95959, #D63031);
+            color: #ffffff !important;
+            box-shadow: 0 4px 14px rgba(249, 89, 89, 0.4);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex justify-center items-start antialiased selection:bg-daman-red selection:text-white">
+
+    <!-- Mobile Wrapper Viewport (Max 480px, Centered on Desktop) -->
+    <div class="w-full max-w-[480px] min-h-screen bg-[#140608] flex flex-col relative pb-24 shadow-2xl border-x border-daman-red/10">
+
+        <!-- ================= TOP APP HEADER ================= -->
+        <header class="sticky top-0 z-40 bg-[#1D080A]/95 backdrop-blur-md px-4 py-3 border-b border-daman-red/15 flex items-center justify-between shadow-lg">
+            <div class="flex items-center gap-2">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-daman-darkRed to-daman-red flex items-center justify-center shadow-lg shadow-daman-red/30 border border-white/20">
+                    <i class="fa-solid fa-crown text-amber-300 text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-black text-base tracking-wide flex items-center gap-1.5 leading-none">
+                        <span class="gold-text">DAMAN</span>
+                        <span class="text-white text-xs px-1.5 py-0.5 rounded bg-daman-red/20 text-daman-red border border-daman-red/40 font-bold">VIP</span>
+                    </h1>
+                    <p class="text-[9px] text-zinc-400 font-medium tracking-wider">OFFICIAL LOTTERY ARENA</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <!-- Sound Toggle -->
+                <button onclick="toggleAudio()" id="sound-btn" class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 active:scale-95 transition-all text-xs" title="Toggle Sound">
+                    <i class="fa-solid fa-volume-high text-amber-400" id="sound-icon"></i>
+                </button>
+                <!-- Notification Bell -->
+                <button onclick="showToast('No new notifications')" class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 relative active:scale-95 transition-all text-xs">
+                    <i class="fa-solid fa-bell"></i>
+                    <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-daman-red animate-ping"></span>
+                    <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-daman-red"></span>
+                </button>
+                <!-- Language Selector -->
+                <div class="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-zinc-300 flex items-center gap-1">
+                    <i class="fa-solid fa-globe text-daman-red text-xs"></i>
+                    <span>EN</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- ================= MAIN SCROLLABLE CONTENT ================= -->
+        <main class="flex-1 px-3 pt-3 space-y-3">
+
+            <!-- 1. USER WALLET & VIP CARD -->
+            <div class="daman-card rounded-2xl p-4 relative overflow-hidden">
+                <!-- Ambient Glow Background -->
+                <div class="absolute -right-8 -top-8 w-32 h-32 bg-daman-red/20 rounded-full blur-2xl pointer-events-none"></div>
+
+                <div class="flex items-center justify-between relative z-10 mb-3">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 p-0.5 shadow-md">
+                            <div class="w-full h-full rounded-full bg-[#1A0709] flex items-center justify-center text-amber-300 font-black text-sm">
+                                <i class="fa-solid fa-user-shield"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="font-bold text-xs text-zinc-200">UID: 91****4821</span>
+                                <span class="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-0.5">
+                                    <i class="fa-solid fa-shield-halved text-[8px]"></i> VIP 3
+                                </span>
+                            </div>
+                            <p class="text-[10px] text-zinc-400">Main INR Wallet</p>
+                        </div>
+                    </div>
+
+                    <!-- Refresh Balance Button -->
+                    <button onclick="refreshBalance()" class="text-zinc-400 hover:text-white p-1.5 rounded-lg active:scale-90 transition-all text-xs" title="Refresh">
+                        <i class="fa-solid fa-arrows-rotate" id="refresh-icon"></i>
+                    </button>
+                </div>
+
+                <!-- Wallet Balance Display -->
+                <div class="relative z-10 flex items-baseline justify-between mb-4">
+                    <div>
+                        <span class="text-xs text-zinc-400 font-medium">Total Balance</span>
+                        <div class="flex items-center gap-1 text-2xl font-black tracking-tight text-white font-mono">
+                            <span class="text-amber-400 text-xl font-bold">₹</span>
+                            <span id="user-balance">24,850.50</span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-[10px] text-zinc-400 block">Today's Profit</span>
+                        <span class="text-xs font-bold text-emerald-400 font-mono">+₹4,230.00</span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons: Deposit & Withdraw -->
+                <div class="grid grid-cols-2 gap-2 relative z-10">
+                    <button onclick="openDepositModal()" class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/25 border border-emerald-400/30 text-white font-black text-xs">
+                        <i class="fa-solid fa-wallet text-sm text-emerald-200"></i>
+                        <span>DEPOSIT / RECHARGE</span>
+                    </button>
+                    <button onclick="openWithdrawModal()" class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-daman-darkRed to-daman-red hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-daman-red/25 border border-daman-red/40 text-white font-black text-xs">
+                        <i class="fa-solid fa-money-bill-transfer text-sm text-red-200"></i>
+                        <span>WITHDRAW</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. LIVE WINNING NOTICE MARQUEE -->
+            <div class="bg-[#240A0D] border border-daman-red/20 rounded-xl px-3 py-2 flex items-center gap-2 overflow-hidden shadow-inner text-xs">
+                <i class="fa-solid fa-volume-high text-amber-400 text-xs shrink-0 animate-pulse"></i>
+                <div class="overflow-hidden whitespace-nowrap flex-1">
+                    <div class="inline-block animate-[marquee_18s_linear_infinite] text-[11px] text-zinc-300 font-medium">
+                        🎉 Member <span class="text-amber-300 font-bold">98***34</span> won <span class="text-emerald-400 font-bold">₹9,800.00</span> in Win Go 1M &nbsp;•&nbsp; 
+                        🔥 User <span class="text-amber-300 font-bold">70***19</span> won <span class="text-emerald-400 font-bold">₹24,500.00</span> in Trx Win Go &nbsp;•&nbsp; 
+                        ⚡ VIP Member <span class="text-amber-300 font-bold">91***88</span> withdrew <span class="text-amber-400 font-bold">₹50,000.00</span> via Instant UPI Bank
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. GAME CATEGORY TABS -->
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-bold">
+                <button class="active-tab shrink-0 px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all">
+                    <i class="fa-solid fa-clover text-amber-300"></i>
+                    <span>Lottery</span>
+                </button>
+                <button onclick="showToast('Slots Lobby Coming Soon')" class="shrink-0 px-3.5 py-2 rounded-xl bg-[#23090C] text-zinc-400 hover:text-white border border-white/5 flex items-center gap-1.5 transition-all">
+                    <i class="fa-solid fa-dice text-rose-400"></i>
+                    <span>Slots</span>
+                </button>
+                <button onclick="showToast('Sports Lobby Coming Soon')" class="shrink-0 px-3.5 py-2 rounded-xl bg-[#23090C] text-zinc-400 hover:text-white border border-white/5 flex items-center gap-1.5 transition-all">
+                    <i class="fa-solid fa-futbol text-blue-400"></i>
+                    <span>Sports</span>
+                </button>
+                <button onclick="showToast('Casino Lobby Coming Soon')" class="shrink-0 px-3.5 py-2 rounded-xl bg-[#23090C] text-zinc-400 hover:text-white border border-white/5 flex items-center gap-1.5 transition-all">
+                    <i class="fa-solid fa-gem text-amber-400"></i>
+                    <span>Casino</span>
+                </button>
+                <button onclick="showToast('Fishing Lobby Coming Soon')" class="shrink-0 px-3.5 py-2 rounded-xl bg-[#23090C] text-zinc-400 hover:text-white border border-white/5 flex items-center gap-1.5 transition-all">
+                    <i class="fa-solid fa-fish text-teal-400"></i>
+                    <span>Fishing</span>
+                </button>
+            </div>
+
+            <!-- 4. WIN GO LOTTERY ENGINE (MAIN FEATURE) -->
+            <div class="daman-card rounded-2xl p-4 border border-daman-red/30 space-y-4 shadow-xl">
+                
+                <!-- Sub Game Modes: Win Go 1M / 3M / 5M / 10M -->
+                <div class="grid grid-cols-4 gap-1.5 text-center bg-[#1B0608] p-1 rounded-xl border border-white/5 text-[11px] font-bold">
+                    <button onclick="switchTimeMode(1)" id="mode-btn-1" class="py-1.5 rounded-lg bg-gradient-to-r from-daman-red to-daman-darkRed text-white shadow">Win Go 1M</button>
+                    <button onclick="switchTimeMode(3)" id="mode-btn-3" class="py-1.5 rounded-lg text-zinc-400 hover:text-white">Win Go 3M</button>
+                    <button onclick="switchTimeMode(5)" id="mode-btn-5" class="py-1.5 rounded-lg text-zinc-400 hover:text-white">Win Go 5M</button>
+                    <button onclick="switchTimeMode(10)" id="mode-btn-10" class="py-1.5 rounded-lg text-zinc-400 hover:text-white">Win Go 10M</button>
+                </div>
+
+                <!-- Live Period & Circular Countdown Display -->
+                <div class="bg-gradient-to-r from-[#200709] via-[#2F0C10] to-[#200709] p-3 rounded-xl border border-daman-red/25 flex items-center justify-between">
+                    <div>
+                        <div class="flex items-center gap-1 text-[11px] text-zinc-400 font-semibold">
+                            <span>Period:</span>
+                            <button onclick="showRuleModal()" class="text-amber-400 hover:underline flex items-center gap-0.5 text-[10px]">
+                                <i class="fa-regular fa-circle-question"></i> Rule
+                            </button>
+                        </div>
+                        <div class="font-mono text-base font-black tracking-wider text-amber-300 mt-0.5" id="current-period-display">
+                            20261101010342
+                        </div>
+                    </div>
+
+                    <div class="text-right">
+                        <span class="text-[10px] text-zinc-400 uppercase tracking-widest font-bold block">Time Remaining</span>
+                        <div class="font-mono text-2xl font-black text-white flex items-center gap-1 justify-end mt-0.5" id="timer-box">
+                            <span class="bg-black/50 px-2 py-0.5 rounded border border-white/10" id="timer-min">00</span>
+                            <span class="text-daman-red">:</span>
+                            <span class="bg-black/50 px-2 py-0.5 rounded border border-white/10" id="timer-sec">45</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Big Betting Color Options: Green, Violet, Red -->
+                <div class="grid grid-cols-3 gap-2">
+                    <!-- Green (x2) -->
+                    <button onclick="selectBetTarget('Green', 'green', 2)" class="group py-3 rounded-xl bg-gradient-to-b from-[#18B660] to-[#0F7A3E] hover:brightness-110 active:scale-95 transition-all text-center text-white font-black shadow-lg shadow-emerald-500/20 border border-emerald-300/30">
+                        <div class="text-sm tracking-wider flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-circle text-xs"></i> GREEN
+                        </div>
+                        <span class="text-[10px] font-mono opacity-80 group-hover:opacity-100 font-normal">2.0X Payout</span>
+                    </button>
+
+                    <!-- Violet (x4.5) -->
+                    <button onclick="selectBetTarget('Violet', 'violet', 4.5)" class="group py-3 rounded-xl bg-gradient-to-b from-[#B183F6] to-[#7E4BC4] hover:brightness-110 active:scale-95 transition-all text-center text-white font-black shadow-lg shadow-purple-500/20 border border-purple-300/30">
+                        <div class="text-sm tracking-wider flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-star text-xs text-amber-300"></i> VIOLET
+                        </div>
+                        <span class="text-[10px] font-mono opacity-80 group-hover:opacity-100 font-normal">4.5X Payout</span>
+                    </button>
+
+                    <!-- Red (x2) -->
+                    <button onclick="selectBetTarget('Red', 'red', 2)" class="group py-3 rounded-xl bg-gradient-to-b from-[#F95959] to-[#C02626] hover:brightness-110 active:scale-95 transition-all text-center text-white font-black shadow-lg shadow-red-500/20 border border-red-300/30">
+                        <div class="text-sm tracking-wider flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-circle text-xs"></i> RED
+                        </div>
+                        <span class="text-[10px] font-mono opacity-80 group-hover:opacity-100 font-normal">2.0X Payout</span>
+                    </button>
+                </div>
+
+                <!-- Number Balls Grid (0 to 9) -->
+                <div class="bg-[#1C0709] p-3 rounded-xl border border-white/5">
+                    <div class="flex items-center justify-between text-[11px] text-zinc-400 mb-2 font-semibold">
+                        <span>Select Lucky Number</span>
+                        <span class="text-amber-400 font-mono">9.0X Win</span>
+                    </div>
+
+                    <div class="grid grid-cols-5 gap-2.5">
+                        <!-- 0: Half Red, Half Violet -->
+                        <button onclick="selectBetTarget('0', 'ball-0', 9)" class="ball-0 w-full aspect-square rounded-full flex flex-col items-center justify-center font-black text-white text-base shadow-md active:scale-90 transition-all border-2 border-white/30">
+                            0
+                        </button>
+                        <!-- 1: Green -->
+                        <button onclick="selectBetTarget('1', 'ball-green', 9)" class="ball-green w-full aspect-square rounded-full flex flex-col items-center justify-center font-black text-white text-base shadow-md active:scale-90 transition-all border-2 border-white/30">
+                            1
+                        </button>
+                        <!-- 2: Red -->
+                        <button onclick="selectBetTarget('2', 'ball-red', 9)" class="ball-red w-full aspect-square rounded-full flex flex-col items-center justify-center font-black text-white text-base shadow-md active:scale-90 transition-all border-2 border-white/30">
+                            2
+                        </button>
+                        <!-- 3: Green -->
+                        <button onclick="selectBetTarget('3', 'ball-green', 9)" class="ball-green w-full aspect-square rounded-full flex flex-col items-center justify-center font-black text-white text-base shadow-md active:scale-90 transition-all border-2 border-white/30">
+                            3
+                        </button>
+                        <!-- 4: Red -->
+                        <button onclick="selectBetTarget('4', 'ball-red', 9)" class="ball-red w-full aspect-square rounded-full flex flex-col items-center justify-center font-black text-white text-base shadow-md active:scale-90 transition-all border-2 border-white/30">
+                            4
+                        </button>
+                        <!-- 5: Half Green, Half Violet -->
+                        <button onclick="selectBetTarget('5', 'ball-5', 9)" class="ball-5 w-full aspect-square rounded-full flex flex-col items-center justify-center font-black text-white text-base shadow-md active:scale-90 transition-all border-2 border-white/30">
+                            5
+                        </button>
+                        <!-- 6: Red -->
+                        <button onclick="selectBetTarget('6', 'ball-red', 9)" class="ball-red w-full aspect-square rounded-full flex flex-col items-center justify-center font-black text-white text-base shadow-md active:scale-90 transition-all border-2 border-white/30">
+                            6
+                        </button>
+                        <!-- 7: Green -->
+                        <button onclick="selectBetTarget('7', 'ball-green', 9)" class="ball-green w-full aspect-square rounded-full flex flex-col items-center justify-center font-black text-white text-base shadow-md active:scale-90 transition-all border-2 border-white/30">
+                            7
+                        </button>
+                        <!-- 8: Red -->
+                        <button onclick="selectBetTarget('8', 'ball-red', 9)" class="ball-red w-full aspect-square rounded-full flex flex-col items-center justify-center font-black text-white text-base shadow-md active:scale-90 transition-all border-2 border-white/30">
+                            8
+                        </button>
+                        <!-- 9: Green -->
+                        <button onclick="selectBetTarget('9', 'ball-green', 9)" class="ball-green w-full aspect-square rounded-full flex flex-col items-center justify-center font-black text-white text-base shadow-md active:scale-90 transition-all border-2 border-white/30">
+                            9
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Big / Small Betting Buttons -->
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="selectBetTarget('Big (5-9)', 'big', 2)" class="py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:brightness-110 active:scale-95 transition-all text-white font-black text-xs shadow-md border border-amber-300/30 flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-arrow-trend-up"></i> BIG (5 - 9) • 2.0X
+                    </button>
+                    <button onclick="selectBetTarget('Small (0-4)', 'small', 2)" class="py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:brightness-110 active:scale-95 transition-all text-white font-black text-xs shadow-md border border-blue-300/30 flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-arrow-trend-down"></i> SMALL (0 - 4) • 2.0X
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- 5. GAME RECORD & CHART TRENDS TABLE -->
+            <div class="daman-card rounded-2xl p-3 border border-daman-red/20 space-y-3">
+                <div class="flex items-center justify-between border-b border-white/5 pb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-4 rounded-full bg-daman-red inline-block"></span>
+                        <h3 class="font-black text-xs text-white uppercase tracking-wider">Game History</h3>
+                    </div>
+                    <span class="text-[10px] text-zinc-400 font-mono">Live Sync</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-[11px]">
+                        <thead>
+                            <tr class="text-zinc-500 border-b border-white/5 uppercase text-[9px] font-bold">
+                                <th class="pb-2">Period</th>
+                                <th class="pb-2 text-center">Number</th>
+                                <th class="pb-2 text-center">Big/Small</th>
+                                <th class="pb-2 text-right">Color</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body" class="divide-y divide-white/5 font-mono">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 6. TOP WINNERS TODAY (LEADERBOARD) -->
+            <div class="daman-card rounded-2xl p-4 border border-daman-red/20 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-trophy text-amber-400 text-sm"></i>
+                        <h3 class="font-black text-xs text-white uppercase tracking-wider">Top Daily Winners</h3>
+                    </div>
+                    <span class="text-[10px] text-amber-400 font-bold">Live Rankings</span>
+                </div>
+
+                <div class="space-y-2">
+                    <!-- Rank 1 -->
+                    <div class="flex items-center justify-between p-2 rounded-xl bg-gradient-to-r from-amber-500/10 to-transparent border border-amber-500/20">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-6 h-6 rounded-full bg-amber-400 text-black font-black text-xs flex items-center justify-center shadow">1</span>
+                            <div>
+                                <span class="font-bold text-xs text-zinc-200">UID: 98***71</span>
+                                <span class="text-[9px] text-zinc-500 block">Win Go 1M Master</span>
+                            </div>
+                        </div>
+                        <span class="font-mono font-black text-xs text-amber-400">₹1,48,900.00</span>
+                    </div>
+
+                    <!-- Rank 2 -->
+                    <div class="flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-6 h-6 rounded-full bg-zinc-300 text-black font-black text-xs flex items-center justify-center shadow">2</span>
+                            <div>
+                                <span class="font-bold text-xs text-zinc-200">UID: 79***14</span>
+                                <span class="text-[9px] text-zinc-500 block">K3 Lottery Pro</span>
+                            </div>
+                        </div>
+                        <span class="font-mono font-black text-xs text-zinc-300">₹89,450.00</span>
+                    </div>
+
+                    <!-- Rank 3 -->
+                    <div class="flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-6 h-6 rounded-full bg-amber-700 text-white font-black text-xs flex items-center justify-center shadow">3</span>
+                            <div>
+                                <span class="font-bold text-xs text-zinc-200">UID: 90***32</span>
+                                <span class="text-[9px] text-zinc-500 block">Trx Win Go</span>
+                            </div>
+                        </div>
+                        <span class="font-mono font-black text-xs text-amber-600">₹54,200.00</span>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- ================= BOTTOM FLOATING APP NAV DOCK ================= -->
+        <nav class="fixed bottom-0 max-w-[480px] w-full bg-[#180709]/95 backdrop-blur-lg border-t border-daman-red/20 py-2 px-3 flex items-center justify-around z-40 shadow-2xl">
+            <button onclick="switchNavTab('home')" class="nav-item active flex flex-col items-center gap-1 text-daman-red">
+                <i class="fa-solid fa-house text-base"></i>
+                <span class="text-[10px] font-bold">Home</span>
+            </button>
+            <button onclick="showToast('Activity & VIP Bonus Center')" class="nav-item flex flex-col items-center gap-1 text-zinc-400 hover:text-white">
+                <i class="fa-solid fa-gift text-base"></i>
+                <span class="text-[10px] font-bold">Activity</span>
+            </button>
+            <button onclick="showToast('Agency & Invite Rebate: Earn up to 85% Commission!')" class="nav-item flex flex-col items-center gap-1 text-zinc-400 hover:text-white">
+                <i class="fa-solid fa-users text-base"></i>
+                <span class="text-[10px] font-bold">Promotion</span>
+            </button>
+            <button onclick="openDepositModal()" class="nav-item flex flex-col items-center gap-1 text-zinc-400 hover:text-white">
+                <i class="fa-solid fa-wallet text-base"></i>
+                <span class="text-[10px] font-bold">Wallet</span>
+            </button>
+            <button onclick="showToast('Account ID: 91****4821 • Level: VIP 3')" class="nav-item flex flex-col items-center gap-1 text-zinc-400 hover:text-white">
+                <i class="fa-solid fa-circle-user text-base"></i>
+                <span class="text-[10px] font-bold">Account</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <!-- ================= BETTING SLIP MODAL (POPUP DRAWER) ================= -->
+    <div id="bet-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end justify-center hidden opacity-0 transition-opacity duration-200">
+        <div class="w-full max-w-[480px] bg-[#1E080B] rounded-t-3xl border-t border-daman-red/40 p-4 space-y-4 shadow-2xl transform translate-y-full transition-transform duration-200" id="bet-modal-card">
+            
+            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full" id="modal-target-dot"></span>
+                    <h3 class="font-black text-sm text-white" id="modal-target-name">Select Target</h3>
+                </div>
+                <button onclick="closeBetModal()" class="w-7 h-7 rounded-full bg-white/10 text-zinc-400 hover:text-white flex items-center justify-center">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Base Balance Chips -->
+            <div>
+                <span class="text-[11px] text-zinc-400 font-semibold mb-1.5 block">Select Base Amount</span>
+                <div class="grid grid-cols-5 gap-1.5">
+                    <button onclick="setBaseBet(10)" class="chip-btn py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono font-bold text-white active:bg-daman-red">₹10</button>
+                    <button onclick="setBaseBet(100)" class="chip-btn py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono font-bold text-white active:bg-daman-red">₹100</button>
+                    <button onclick="setBaseBet(500)" class="chip-btn py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono font-bold text-white active:bg-daman-red">₹500</button>
+                    <button onclick="setBaseBet(1000)" class="chip-btn py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono font-bold text-white active:bg-daman-red">₹1K</button>
+                    <button onclick="setBaseBet(5000)" class="chip-btn py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono font-bold text-white active:bg-daman-red">₹5K</button>
+                </div>
+            </div>
+
+            <!-- Multipliers -->
+            <div>
+                <span class="text-[11px] text-zinc-400 font-semibold mb-1.5 block">Multiplier</span>
+                <div class="grid grid-cols-6 gap-1">
+                    <button onclick="setMultiplier(1)" class="mult-btn py-1.5 rounded-lg bg-daman-red text-white text-[11px] font-mono font-bold">X1</button>
+                    <button onclick="setMultiplier(5)" class="mult-btn py-1.5 rounded-lg bg-white/5 text-zinc-300 text-[11px] font-mono font-bold">X5</button>
+                    <button onclick="setMultiplier(10)" class="mult-btn py-1.5 rounded-lg bg-white/5 text-zinc-300 text-[11px] font-mono font-bold">X10</button>
+                    <button onclick="setMultiplier(20)" class="mult-btn py-1.5 rounded-lg bg-white/5 text-zinc-300 text-[11px] font-mono font-bold">X20</button>
+                    <button onclick="setMultiplier(50)" class="mult-btn py-1.5 rounded-lg bg-white/5 text-zinc-300 text-[11px] font-mono font-bold">X50</button>
+                    <button onclick="setMultiplier(100)" class="mult-btn py-1.5 rounded-lg bg-white/5 text-zinc-300 text-[11px] font-mono font-bold">X100</button>
+                </div>
+            </div>
+
+            <!-- Total Calculation & Agree Checklist -->
+            <div class="bg-black/40 p-3 rounded-xl border border-white/5 flex items-center justify-between text-xs">
+                <div>
+                    <span class="text-zinc-400 text-[10px]">Total Bet Amount</span>
+                    <div class="font-mono font-black text-amber-400 text-base" id="modal-total-bet">₹10.00</div>
+                </div>
+                <div class="text-right">
+                    <span class="text-zinc-400 text-[10px]">Estimated Payout</span>
+                    <div class="font-mono font-black text-emerald-400 text-base" id="modal-estimated-payout">₹20.00</div>
+                </div>
+            </div>
+
+            <!-- Confirm Bet Button -->
+            <button onclick="confirmPlaceBet()" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-daman-red to-daman-darkRed hover:brightness-110 active:scale-[0.98] transition-all text-white font-black text-sm tracking-wide shadow-xl shadow-daman-red/30">
+                CONFIRM BET (₹<span id="modal-confirm-btn-amt">10.00</span>)
+            </button>
+        </div>
+    </div>
+
+    <!-- ================= RECHARGE / DEPOSIT MODAL ================= -->
+    <div id="deposit-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden opacity-0 transition-opacity duration-200">
+        <div class="w-full max-w-[420px] bg-[#1F070A] rounded-3xl border border-daman-red/30 p-5 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold">
+                        <i class="fa-solid fa-bolt"></i>
+                    </div>
+                    <h3 class="font-black text-sm text-white">Deposit / Fast Recharge</h3>
+                </div>
+                <button onclick="closeDepositModal()" class="w-7 h-7 rounded-full bg-white/10 text-zinc-400 hover:text-white flex items-center justify-center">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Payment Channel Switcher -->
+            <div>
+                <span class="text-[11px] text-zinc-400 font-semibold mb-1.5 block">Select Deposit Channel</span>
+                <div class="grid grid-cols-3 gap-1.5 text-center text-xs font-bold">
+                    <div class="p-2.5 rounded-xl border border-daman-red bg-daman-red/15 text-white flex flex-col items-center gap-1 cursor-pointer">
+                        <i class="fa-solid fa-qrcode text-emerald-400 text-sm"></i>
+                        <span class="text-[11px]">AR-UPI</span>
+                        <span class="text-[8px] text-emerald-400 uppercase">Instant</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl border border-white/10 bg-white/5 text-zinc-300 flex flex-col items-center gap-1 cursor-pointer">
+                        <i class="fa-solid fa-building-columns text-blue-400 text-sm"></i>
+                        <span class="text-[11px]">MPXPays UPI</span>
+                        <span class="text-[8px] text-zinc-500">11% Fee</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl border border-white/10 bg-white/5 text-zinc-300 flex flex-col items-center gap-1 cursor-pointer">
+                        <i class="fa-brands fa-bitcoin text-amber-400 text-sm"></i>
+                        <span class="text-[11px]">USDT TRC20</span>
+                        <span class="text-[8px] text-zinc-500">Min 50k</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Chips -->
+            <div>
+                <span class="text-[11px] text-zinc-400 font-semibold mb-1.5 block">Deposit Amount (INR)</span>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <button onclick="setDepositAmount(500)" class="py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono font-bold hover:border-daman-red">₹500</button>
+                    <button onclick="setDepositAmount(1000)" class="py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono font-bold hover:border-daman-red">₹1,000</button>
+                    <button onclick="setDepositAmount(2500)" class="py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono font-bold hover:border-daman-red">₹2,500</button>
+                    <button onclick="setDepositAmount(4999)" class="py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono font-bold hover:border-daman-red">₹4,999 🔥</button>
+                    <button onclick="setDepositAmount(10000)" class="py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono font-bold hover:border-daman-red">₹10,000</button>
+                    <button onclick="setDepositAmount(50000)" class="py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono font-bold hover:border-daman-red">₹50,000</button>
+                </div>
+                <input type="number" id="custom-deposit-input" value="4999" class="w-full mt-2 bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-daman-red text-center" placeholder="Enter custom amount">
+            </div>
+
+            <button onclick="submitDepositAction()" class="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 active:scale-95 transition-all text-white font-black text-sm shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span>PAY SECURELY NOW</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ================= HOW TO PLAY RULE MODAL ================= -->
+    <div id="rule-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-200">
+        <div class="w-full max-w-[400px] bg-[#1E080B] rounded-3xl border border-daman-red/30 p-5 space-y-3 text-xs text-zinc-300">
+            <div class="flex items-center justify-between border-b border-white/10 pb-2">
+                <h3 class="font-black text-sm text-white flex items-center gap-1.5">
+                    <i class="fa-solid fa-book-open text-amber-400"></i>
+                    <span>Win Go Game Rules</span>
+                </h3>
+                <button onclick="closeRuleModal()" class="text-zinc-400 hover:text-white"><i class="fa-solid fa-xmark text-sm"></i></button>
+            </div>
+            <p>1. <strong>Green (1, 3, 7, 9):</strong> Result number is Green, you get <strong>2.0x</strong> return.</p>
+            <p>2. <strong>Red (2, 4, 6, 8):</strong> Result number is Red, you get <strong>2.0x</strong> return.</p>
+            <p>3. <strong>Violet (0, 5):</strong> If number is 0 or 5, Violet gets <strong>4.5x</strong> return.</p>
+            <p>4. <strong>Exact Number (0-9):</strong> If you hit exact lucky number, you win <strong>9.0x</strong> return!</p>
+            <p>5. <strong>Big (5-9) / Small (0-4):</strong> <strong>2.0x</strong> return.</p>
+            <div class="pt-2 text-center">
+                <button onclick="closeRuleModal()" class="px-6 py-2 rounded-xl bg-daman-red text-white font-bold">GOT IT</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Element -->
+    <div id="toast-box" class="fixed top-14 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-zinc-900/95 border border-white/20 text-white text-xs font-bold shadow-2xl transition-all duration-300 pointer-events-none opacity-0 translate-y-2 flex items-center gap-2">
+        <i class="fa-solid fa-circle-check text-emerald-400" id="toast-icon"></i>
+        <span id="toast-msg">Notification</span>
+    </div>
+
+    <!-- ================= JAVASCRIPT GAME LOGIC ================= -->
+    <script>
+        // State
+        let soundEnabled = true;
+        let currentPeriod = 20261101010342;
+        let timeLeft = 45; // seconds
+        let currentModeMinutes = 1;
+        let userBalance = 24850.50;
+
+        // Betting slip state
+        let currentBet = {
+            target: '',
+            cssClass: '',
+            multiplier: 1,
+            baseAmount: 10,
+            payoutMultiplier: 2.0
+        };
+
+        let activeUserBets = []; // Array of bets placed in this round
+
+        // Web Audio Synthesizer (No external asset dependency)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playBeep(freq = 440, type = 'sine', duration = 0.1) {
+            if (!soundEnabled) return;
+            try {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {}
+        }
+
+        function playWinChime() {
+            if (!soundEnabled) return;
+            [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                setTimeout(() => playBeep(freq, 'triangle', 0.2), idx * 100);
+            });
+        }
+
+        function toggleAudio() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('sound-icon');
+            if (soundEnabled) {
+                icon.className = 'fa-solid fa-volume-high text-amber-400';
+                showToast('Audio effects enabled');
+                playBeep(600, 'sine', 0.1);
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark text-zinc-500';
+                showToast('Audio muted');
+            }
+        }
+
+        // Timer Tick
+        setInterval(() => {
+            timeLeft--;
+            if (timeLeft <= 0) {
+                // Round completed! Generate result
+                resolveCurrentRound();
+                timeLeft = currentModeMinutes * 60;
+                currentPeriod++;
+                document.getElementById('current-period-display').innerText = currentPeriod;
+            }
+
+            // Update UI Timer
+            const m = Math.floor(timeLeft / 60);
+            const s = timeLeft % 60;
+            document.getElementById('timer-min').innerText = m < 10 ? '0' + m : m;
+            document.getElementById('timer-sec').innerText = s < 10 ? '0' + s : s;
+
+            // Countdown audio in last 5 seconds
+            const timerBox = document.getElementById('timer-box');
+            if (timeLeft <= 5) {
+                timerBox.classList.add('urgent-timer');
+                playBeep(880, 'square', 0.08);
+            } else {
+                timerBox.classList.remove('urgent-timer');
+            }
+        }, 1000);
+
+        // Generate Round Outcome & Settle Bets
+        function resolveCurrentRound() {
+            const num = Math.floor(Math.random() * 10);
+            let color = 'red';
+            let bigSmall = num >= 5 ? 'Big' : 'Small';
+
+            if (num === 0) color = 'violet-red';
+            else if (num === 5) color = 'violet-green';
+            else if ([1, 3, 7, 9].includes(num)) color = 'green';
+            else color = 'red';
+
+            // Check if player won any active bets
+            let roundWinning = 0;
+            activeUserBets.forEach(bet => {
+                let won = false;
+                if (bet.target === 'Green' && (color === 'green' || color === 'violet-green')) won = true;
+                if (bet.target === 'Red' && (color === 'red' || color === 'violet-red')) won = true;
+                if (bet.target === 'Violet' && (num === 0 || num === 5)) won = true;
+                if (bet.target === 'Big (5-9)' && num >= 5) won = true;
+                if (bet.target === 'Small (0-4)' && num < 5) won = true;
+                if (bet.target === String(num)) won = true;
+
+                if (won) {
+                    roundWinning += bet.totalBet * bet.payoutMultiplier;
+                }
+            });
+
+            if (roundWinning > 0) {
+                userBalance += roundWinning;
+                updateBalanceUI();
+                playWinChime();
+                showToast(`🎉 WINNER! You won ₹${roundWinning.toFixed(2)} on Period ${currentPeriod}`);
+            }
+
+            activeUserBets = [];
+
+            // Add to History Table
+            addHistoryRow(currentPeriod, num, bigSmall, color);
+        }
+
+        // Add row to table
+        function addHistoryRow(period, num, bigSmall, color) {
+            const tbody = document.getElementById('history-table-body');
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-white/[0.02] transition-colors';
+
+            let dotHtml = '';
+            if (color === 'green') {
+                dotHtml = '<span class="w-3 h-3 rounded-full bg-emerald-500 inline-block shadow"></span>';
+            } else if (color === 'red') {
+                dotHtml = '<span class="w-3 h-3 rounded-full bg-rose-500 inline-block shadow"></span>';
+            } else if (color === 'violet-red') {
+                dotHtml = '<span class="w-3 h-3 rounded-full ball-0 inline-block shadow"></span>';
+            } else {
+                dotHtml = '<span class="w-3 h-3 rounded-full ball-5 inline-block shadow"></span>';
+            }
+
+            tr.innerHTML = `
+                <td class="py-2.5 text-zinc-300 font-semibold">${period}</td>
+                <td class="py-2.5 text-center font-black text-sm text-white">${num}</td>
+                <td class="py-2.5 text-center font-bold ${bigSmall === 'Big' ? 'text-amber-400' : 'text-blue-400'}">${bigSmall}</td>
+                <td class="py-2.5 text-right">${dotHtml}</td>
+            `;
+
+            if (tbody.firstChild) {
+                tbody.insertBefore(tr, tbody.firstChild);
+            } else {
+                tbody.appendChild(tr);
+            }
+
+            // Keep max 10 rows
+            while (tbody.children.length > 10) {
+                tbody.removeChild(tbody.lastChild);
+            }
+        }
+
+        // Seed Initial Table History
+        function seedInitialHistory() {
+            const samples = [
+                { num: 7, bs: 'Big', color: 'green' },
+                { num: 2, bs: 'Small', color: 'red' },
+                { num: 0, bs: 'Small', color: 'violet-red' },
+                { num: 9, bs: 'Big', color: 'green' },
+                { num: 8, bs: 'Big', color: 'red' },
+                { num: 5, bs: 'Big', color: 'violet-green' }
+            ];
+
+            let p = currentPeriod - 6;
+            samples.forEach(s => {
+                addHistoryRow(p++, s.num, s.bs, s.color);
+            });
+        }
+        seedInitialHistory();
+
+        // Switch Time Mode (1M, 3M, 5M, 10M)
+        function switchTimeMode(min) {
+            currentModeMinutes = min;
+            timeLeft = min * 60;
+            [1, 3, 5, 10].forEach(m => {
+                const b = document.getElementById(`mode-btn-${m}`);
+                if (m === min) {
+                    b.className = 'py-1.5 rounded-lg bg-gradient-to-r from-daman-red to-daman-darkRed text-white shadow font-bold';
+                } else {
+                    b.className = 'py-1.5 rounded-lg text-zinc-400 hover:text-white font-medium';
+                }
+            });
+            playBeep(520, 'sine', 0.08);
+            showToast(`Switched to Win Go ${min}Min`);
+        }
+
+        // Select Bet Target (Opens Modal Drawer)
+        function selectBetTarget(name, type, payout) {
+            playBeep(480, 'sine', 0.08);
+            currentBet.target = name;
+            currentBet.payoutMultiplier = payout;
+
+            const modal = document.getElementById('bet-modal');
+            const card = document.getElementById('bet-modal-card');
+            const title = document.getElementById('modal-target-name');
+            const dot = document.getElementById('modal-target-dot');
+
+            title.innerText = `Bet on [ ${name} ]`;
+            if (type.includes('green')) dot.className = 'w-3 h-3 rounded-full bg-emerald-500';
+            else if (type.includes('violet')) dot.className = 'w-3 h-3 rounded-full bg-purple-500';
+            else if (type.includes('red')) dot.className = 'w-3 h-3 rounded-full bg-rose-500';
+            else dot.className = 'w-3 h-3 rounded-full bg-amber-400';
+
+            updateBetSlipCalculation();
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                card.classList.remove('translate-y-full');
+            }, 10);
+        }
+
+        function closeBetModal() {
+            const modal = document.getElementById('bet-modal');
+            const card = document.getElementById('bet-modal-card');
+            card.classList.add('translate-y-full');
+            modal.classList.add('opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 200);
+        }
+
+        function setBaseBet(amt) {
+            currentBet.baseAmount = amt;
+            playBeep(600, 'sine', 0.05);
+            updateBetSlipCalculation();
+        }
+
+        function setMultiplier(mult) {
+            currentBet.multiplier = mult;
+            playBeep(700, 'sine', 0.05);
+            updateBetSlipCalculation();
+        }
+
+        function updateBetSlipCalculation() {
+            const total = currentBet.baseAmount * currentBet.multiplier;
+            const est = total * currentBet.payoutMultiplier;
+            document.getElementById('modal-total-bet').innerText = `₹${total.toFixed(2)}`;
+            document.getElementById('modal-estimated-payout').innerText = `₹${est.toFixed(2)}`;
+            document.getElementById('modal-confirm-btn-amt').innerText = `${total.toFixed(2)}`;
+        }
+
+        function confirmPlaceBet() {
+            const total = currentBet.baseAmount * currentBet.multiplier;
+            if (userBalance < total) {
+                showToast('Insufficient balance! Please recharge.');
+                openDepositModal();
+                closeBetModal();
+                return;
+            }
+
+            userBalance -= total;
+            updateBalanceUI();
+
+            activeUserBets.push({
+                target: currentBet.target,
+                totalBet: total,
+                payoutMultiplier: currentBet.payoutMultiplier
+            });
+
+            playBeep(800, 'sine', 0.15);
+            showToast(`Bet placed on ${currentBet.target} for ₹${total.toFixed(2)}!`);
+            closeBetModal();
+        }
+
+        function updateBalanceUI() {
+            document.getElementById('user-balance').innerText = userBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        }
+
+        function refreshBalance() {
+            const icon = document.getElementById('refresh-icon');
+            icon.classList.add('animate-spin');
+            playBeep(650, 'sine', 0.1);
+            setTimeout(() => {
+                icon.classList.remove('animate-spin');
+                showToast('Wallet balance refreshed!');
+            }, 600);
+        }
+
+        // Deposit & Recharge Modal Controls
+        function openDepositModal() {
+            const m = document.getElementById('deposit-modal');
+            m.classList.remove('hidden');
+            setTimeout(() => m.classList.remove('opacity-0'), 10);
+            playBeep(550, 'sine', 0.08);
+        }
+
+        function closeDepositModal() {
+            const m = document.getElementById('deposit-modal');
+            m.classList.add('opacity-0');
+            setTimeout(() => m.classList.add('hidden'), 200);
+        }
+
+        function setDepositAmount(amt) {
+            document.getElementById('custom-deposit-input').value = amt;
+            playBeep(600, 'sine', 0.05);
+        }
+
+        function submitDepositAction() {
+            const amt = parseFloat(document.getElementById('custom-deposit-input').value || 0);
+            if (amt <= 0) {
+                showToast('Please enter a valid deposit amount!');
+                return;
+            }
+
+            playBeep(880, 'triangle', 0.2);
+            showToast(`Initiating ₹${amt} UPI deposit via MPXPays Gateway...`);
+            
+            // Redirect to existing KryptPay / MPX deposit gateway or add to balance
+            setTimeout(() => {
+                userBalance += amt;
+                updateBalanceUI();
+                closeDepositModal();
+                showToast(`✅ ₹${amt} deposited successfully!`);
+            }, 1200);
+        }
+
+        function openWithdrawModal() {
+            showToast('Withdraw limit: ₹500 - ₹50,000 (Processing Time: 2h)');
+        }
+
+        function showRuleModal() {
+            const m = document.getElementById('rule-modal');
+            m.classList.remove('hidden');
+            setTimeout(() => m.classList.remove('opacity-0'), 10);
+        }
+
+        function closeRuleModal() {
+            const m = document.getElementById('rule-modal');
+            m.classList.add('opacity-0');
+            setTimeout(() => m.classList.add('hidden'), 200);
+        }
+
+        // Toast Helper
+        function showToast(msg) {
+            const t = document.getElementById('toast-box');
+            document.getElementById('toast-msg').innerText = msg;
+            t.classList.remove('opacity-0', 'translate-y-2');
+            clearTimeout(window._toastTimeout);
+            window._toastTimeout = setTimeout(() => {
+                t.classList.add('opacity-0', 'translate-y-2');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>

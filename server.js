@@ -61,6 +61,10 @@ app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
+app.get(['/daman', '/games', '/lottery'], (req, res) => {
+    res.sendFile(path.join(__dirname, 'daman.html'));
+});
+
 // Google OAuth Configuration
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 
@@ -1262,6 +1266,10 @@ app.get('/api/check-order-status/:orderNo', (req, res) => {
 
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
+app.get(['/daman', '/games', '/lottery'], (req, res) => {
+    res.sendFile(path.join(__dirname, 'daman.html'));
 });
 
 app.post('/api/admin/login', (req, res) => {
