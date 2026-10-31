@@ -50,6 +50,59 @@ app.use((req, res, next) => {
     next();
 });
 
+// Proxy Daman Games Assets & Config
+app.use('/assets', async (req, res) => {
+    try {
+        const targetUrl = 'https://damanvipgames.com/assets' + req.url;
+        const upstream = await fetch(targetUrl, {
+            headers: {
+                'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                'Referer': 'https://damanvipgames.com/'
+            }
+        });
+        
+        const contentType = upstream.headers.get('content-type');
+        if (contentType) res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        
+        const buffer = await upstream.arrayBuffer();
+        res.status(upstream.status).send(Buffer.from(buffer));
+    } catch (e) {
+        res.status(502).send('Error proxying asset: ' + e.message);
+    }
+});
+
+app.get('/web/config', async (req, res) => {
+    try {
+        const queryString = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '?_key=ar050';
+        const targetUrl = 'https://damanvipgames.com/web/config' + queryString;
+        const upstream = await fetch(targetUrl, {
+            headers: {
+                'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0',
+                'Referer': 'https://damanvipgames.com/'
+            }
+        });
+        const contentType = upstream.headers.get('content-type');
+        if (contentType) res.setHeader('Content-Type', contentType);
+        const text = await upstream.text();
+        res.status(upstream.status).send(text);
+    } catch (e) {
+        res.setHeader('Content-Type', 'application/javascript');
+        res.send('window._domain={"checkApiDomain":false,"checkApk":true,"VITE_SAAS_API_URL":"","VITE_SAAS_JSON_URL":"","VITE_BAST_URL":"","VITE_API_URL":"","pwaDomain":""};');
+    }
+});
+
+app.get('/favico.ico', async (req, res) => {
+    try {
+        const upstream = await fetch('https://damanvipgames.com/favico.ico');
+        const buf = await upstream.arrayBuffer();
+        res.setHeader('Content-Type', 'image/x-icon');
+        res.send(Buffer.from(buf));
+    } catch(e) {
+        res.status(404).end();
+    }
+});
+
 // Serve static frontend files and explicit HTML routes
 app.use(express.static(path.join(__dirname, '/')));
 
