@@ -5,7 +5,7 @@
       "src": "api/index.js",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["index.html", "admin.html", "app.js", "styles.css", "database.json", "serviceAccountKey.json"]
+        "includeFiles": ["index.html", "admin.html", "daman.html", "app.js", "styles.css", "database.json", "serviceAccountKey.json"]
       }
     }
   ],
