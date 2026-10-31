@@ -51,9 +51,10 @@ app.use((req, res, next) => {
 });
 
 // Proxy Daman Games Assets & Config
-app.use('/assets', async (req, res) => {
+app.all(['/assets/*', '/assets'], async (req, res) => {
     try {
-        const targetUrl = 'https://damanvipgames.com/assets' + req.url;
+        const rawPath = req.originalUrl || req.url;
+        const targetUrl = 'https://damanvipgames.com' + rawPath;
         const upstream = await fetch(targetUrl, {
             headers: {
                 'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
